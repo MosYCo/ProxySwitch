@@ -11,7 +11,7 @@
  *   platform - linux | macos-arm | macos-intel | windows | all (default: auto-detect)
  */
 
-import { createWriteStream, existsSync, mkdirSync, renameSync, unlinkSync, chmodSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, renameSync, unlinkSync, chmodSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
@@ -66,25 +66,21 @@ async function downloadCaddy(version, osArch, archive, targetName) {
   await downloadFile(url, tmpFile);
 
   console.log(`Extracting to ${targetPath}...`);
-  if (archive === "zip") {
-    // Use PowerShell on Windows, unzip elsewhere
-    if (process.platform === "win32") {
-      const extractDir = join(BIN_DIR, "_tmp_extract");
-      execSync(
-        `powershell -NoProfile -Command "Expand-Archive -Path '${tmpFile}' -DestinationPath '${extractDir}' -Force"`,
-        { stdio: "pipe" }
-      );
-      const src = join(extractDir, "caddy.exe");
-      renameSync(src, targetPath);
-      execSync(`powershell -NoProfile -Command "Remove-Item -Recurse -Force '${extractDir}'"`, { stdio: "pipe" });
-    } else {
-      execSync(`unzip -jo "${tmpFile}" caddy.exe -d "${BIN_DIR}"`, { stdio: "pipe" });
-      renameSync(join(BIN_DIR, "caddy.exe"), targetPath);
-    }
-  } else {
-    execSync(`tar xzf "${tmpFile}" -C "${BIN_DIR}" caddy`, { stdio: "pipe" });
-    renameSync(join(BIN_DIR, "caddy"), targetPath);
-  }
+  const extractDir = join(BIN_DIR, "_tmp_extract");
+  mkdirSync(extractDir, { recursive: true });
+
+  // tar is available on Windows 10+, macOS, and Linux; handles both .zip and .tar.gz
+  const tarFlag = archive === "zip" ? "-xf" : "-xzf";
+  execSync(`tar ${tarFlag} "${tmpFile}" -C "${extractDir}"`, { stdio: "pipe" });
+
+  // Move the extracted binary to target
+  const binName = archive === "zip" ? "caddy.exe" : "caddy";
+  const extracted = join(extractDir, binName);
+  renameSync(extracted, targetPath);
+
+  // Cleanup
+  unlinkSync(tmpFile);
+  rmSync(extractDir, { recursive: true, force: true });
 
   chmodSync(targetPath, 0o755);
   unlinkSync(tmpFile);
