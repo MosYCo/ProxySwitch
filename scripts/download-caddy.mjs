@@ -12,11 +12,9 @@
  *   platform - linux | macos-arm | macos-intel | windows | all (default: auto-detect)
  */
 
-import { createWriteStream, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync, chmodSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { createGunzip } from "node:zlib";
-import { pipeline } from "node:stream/promises";
-import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -50,7 +48,9 @@ async function fetchJson(url) {
 async function downloadFile(url, dest) {
   const res = await fetch(url, { headers: { "User-Agent": "caddy-proxy-tools" } });
   if (!res.ok) throw new Error(`HTTP ${res.status} downloading ${url}`);
-  await pipeline(Readable.fromWeb(res.body), createWriteStream(dest));
+  const buf = Buffer.from(await res.arrayBuffer());
+  writeFileSync(dest, buf);
+  console.log(`  Downloaded ${(buf.length / 1024 / 1024).toFixed(1)} MB`);
 }
 
 async function getLatestVersion() {
