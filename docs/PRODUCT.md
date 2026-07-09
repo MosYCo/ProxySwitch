@@ -538,7 +538,9 @@ Caddy 发布的是压缩包（Linux/macOS 为 `.tar.gz`，Windows 为 `.zip`）�
 | macOS x86_64 | `caddy_{VER}_mac_amd64.tar.gz` | `caddy-x86_64-apple-darwin` |
 | macOS ARM64 | `caddy_{VER}_mac_arm64.tar.gz` | `caddy-aarch64-apple-darwin` |
 
-下载脚本见 `scripts/download-caddy.sh`。
+下载脚本：
+- Linux/macOS: `scripts/download-caddy.sh`
+- Windows (PowerShell): `scripts/download-caddy.ps1`
 
 ### 7.2 安装包体积估算
 

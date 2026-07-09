@@ -20,3 +20,6 @@ Thumbs.db
 
 # Config (user-specific)
 config.json
+
+# Tauri sidecar binaries (downloaded via scripts)
+src-tauri/binaries/
