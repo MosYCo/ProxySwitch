@@ -5,10 +5,13 @@
   "type": "module",
   "packageManager": "pnpm@11.9.0",
   "scripts": {
+    "download-caddy": "node scripts/download-caddy.mjs",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:dev": "pnpm download-caddy && pnpm tauri dev",
+    "tauri:build": "pnpm download-caddy && pnpm tauri build"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.0.5",
