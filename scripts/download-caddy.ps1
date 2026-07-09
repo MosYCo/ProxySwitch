@@ -45,8 +45,9 @@ function Download-Caddy {
         [string]$TargetName
     )
 
-    $url = "${BaseUrl}/v${Version}/caddy_${Version}_${OsArch}"
-    $tmpFile = Join-Path $env:TEMP "caddy_${OsArch}"
+    $ext = if ($Archive -eq "zip") { ".zip" } else { ".tar.gz" }
+    $url = "${BaseUrl}/v${Version}/caddy_${Version}_${OsArch}${ext}"
+    $tmpFile = Join-Path $env:TEMP "caddy_${OsArch}${ext}"
 
     Write-Host "Downloading Caddy v$Version for $OsArch..."
     Invoke-WebRequest -Uri $url -OutFile $tmpFile -UseBasicParsing

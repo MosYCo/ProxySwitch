@@ -25,22 +25,29 @@ download_caddy() {
   local os_arch="$1"
   local archive="$2"
   local target_name="$3"
-  local url="${BASE_URL}/v${VERSION}/caddy_${VERSION}_${os_arch}"
+  local ext
+  if [[ "$archive" == "zip" ]]; then
+    ext=".zip"
+  else
+    ext=".tar.gz"
+  fi
+  local url="${BASE_URL}/v${VERSION}/caddy_${VERSION}_${os_arch}${ext}"
 
   echo "Downloading Caddy v${VERSION} for ${os_arch}..."
-  curl -fSL "${url}" -o "/tmp/caddy_${os_arch}"
+  curl -fSL "${url}" -o "/tmp/caddy_${os_arch}${ext}"
 
+  local tmp_file="/tmp/caddy_${os_arch}${ext}"
   echo "Extracting to ${BIN_DIR}/${target_name}..."
   if [[ "$archive" == "zip" ]]; then
-    unzip -jo "/tmp/caddy_${os_arch}" caddy.exe -d "$BIN_DIR"
+    unzip -jo "$tmp_file" caddy.exe -d "$BIN_DIR"
     mv "$BIN_DIR/caddy.exe" "$BIN_DIR/$target_name"
   else
-    tar xzf "/tmp/caddy_${os_arch}" -C "$BIN_DIR" caddy
+    tar xzf "$tmp_file" -C "$BIN_DIR" caddy
     mv "$BIN_DIR/caddy" "$BIN_DIR/$target_name"
   fi
   chmod +x "$BIN_DIR/$target_name"
 
-  rm -f "/tmp/caddy_${os_arch}"
+  rm -f "$tmp_file"
   echo "Done: ${target_name}"
 }
 
