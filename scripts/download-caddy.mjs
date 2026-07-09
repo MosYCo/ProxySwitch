@@ -14,7 +14,7 @@
 
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { createGunzip } from "node:zlib";
+import { gunzipSync, createInflateRaw } from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -69,16 +69,8 @@ async function getLatestVersion() {
 // An all-zero 512-byte block signals end of archive.
 
 async function extractTarGz(archivePath, targetName) {
-  // Decompress gzip → raw tar
-  const chunks = [];
-  await pipeline(
-    Readable.from(readFileSync(archivePath)),
-    createGunzip(),
-    async function* (source) {
-      for await (const chunk of source) chunks.push(chunk);
-    },
-  );
-  const tar = Buffer.concat(chunks);
+  // Decompress gzip → raw tar (pure JS, no streams needed)
+  const tar = gunzipSync(readFileSync(archivePath));
 
   let offset = 0;
   while (offset + 512 <= tar.length) {
@@ -111,15 +103,6 @@ async function extractTarGz(archivePath, targetName) {
 // 2. Scan the Central Directory to find the target filename and its local-header offset.
 // 3. Seek to that offset, read the Local File Header, and extract the (deflated) data.
 // 4. Inflate with Node's built-in zlib.
-
-import { createInflateRaw } from "node:zlib";
-
-function findSignature(buf, sig, startFrom = 0) {
-  for (let i = startFrom; i <= buf.length - 4; i++) {
-    if (buf.readUInt32LE(i) === sig) return i;
-  }
-  return -1;
-}
 
 async function extractZip(archivePath, targetName) {
   const buf = readFileSync(archivePath);
