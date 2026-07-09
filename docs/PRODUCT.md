@@ -527,12 +527,18 @@ struct LogEntry {
 
 ### 7.1 Sidecar 二进制
 
-| 平台 | 文件名 | 来源 |
-|------|--------|------|
-| Linux x86_64 | `caddy-x86_64-unknown-linux-gnu` | caddyserver.com/download |
-| Windows x86_64 | `caddy-x86_64-pc-windows-msvc.exe` | caddyserver.com/download |
-| macOS x86_64 | `caddy-x86_64-apple-darwin` | caddyserver.com/download |
-| macOS ARM64 | `caddy-aarch64-apple-darwin` | caddyserver.com/download |
+Caddy 发布的是压缩包（Linux/macOS 为 `.tar.gz`，Windows 为 `.zip`），需要解压后重命名。
+
+下载地址格式：`https://github.com/caddyserver/caddy/releases/download/v{VERSION}/caddy_{VERSION}_{os}_{arch}.{ext}`
+
+| 平台 | 压缩包名 | 解压后重命名 |
+|------|---------|-------------|
+| Linux x86_64 | `caddy_{VER}_linux_amd64.tar.gz` | `caddy-x86_64-unknown-linux-gnu` |
+| Windows x86_64 | `caddy_{VER}_windows_amd64.zip` | `caddy-x86_64-pc-windows-msvc.exe` |
+| macOS x86_64 | `caddy_{VER}_mac_amd64.tar.gz` | `caddy-x86_64-apple-darwin` |
+| macOS ARM64 | `caddy_{VER}_mac_arm64.tar.gz` | `caddy-aarch64-apple-darwin` |
+
+下载脚本见 `scripts/download-caddy.sh`。
 
 ### 7.2 安装包体积估算
 

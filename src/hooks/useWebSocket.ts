@@ -15,7 +15,7 @@ type EventHandler = (event: WebSocketEvent) => void
  * The API is kept compatible with the original for minimal code changes.
  */
 export function useWebSocket(_url: string) {
-  const [isConnected, setIsConnected] = useState(true) // Tauri events are always "connected"
+  const [isConnected] = useState(true) // Tauri events are always "connected"
   const handlersRef = useRef<Map<string, Set<EventHandler>>>(new Map())
   const unlistenFns = useRef<UnlistenFn[]>([])
 
