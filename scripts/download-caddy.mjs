@@ -15,7 +15,7 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { gunzipSync, createInflateRaw } from "node:zlib";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BIN_DIR = join(__dirname, "..", "src-tauri", "binaries");
@@ -68,7 +68,7 @@ async function getLatestVersion() {
 //
 // An all-zero 512-byte block signals end of archive.
 
-async function extractTarGz(archivePath, targetName) {
+export async function extractTarGz(archivePath, targetName) {
   // Decompress gzip → raw tar (pure JS, no streams needed)
   const tar = gunzipSync(readFileSync(archivePath));
 
@@ -104,7 +104,7 @@ async function extractTarGz(archivePath, targetName) {
 // 3. Seek to that offset, read the Local File Header, and extract the (deflated) data.
 // 4. Inflate with Node's built-in zlib.
 
-async function extractZip(archivePath, targetName) {
+export async function extractZip(archivePath, targetName) {
   const buf = readFileSync(archivePath);
 
   // End of Central Directory signature: 0x06054b50
@@ -121,7 +121,7 @@ async function extractZip(archivePath, targetName) {
   // Scan Central Directory for our file
   const cdStart = cdOffset;
   let pos = cdStart;
-  let localHeaderOffset = -1;
+  let entry = null;
 
   while (pos < cdStart + cdSize) {
     if (buf.readUInt32LE(pos) !== 0x02014b50) throw new Error("ZIP: bad Central Directory entry");
@@ -135,37 +135,44 @@ async function extractZip(archivePath, targetName) {
     const fileName = buf.subarray(pos + 46, pos + 46 + nameLen).toString("utf8");
 
     if (fileName === targetName || fileName.endsWith("/" + targetName) || fileName.endsWith("\\" + targetName)) {
-      localHeaderOffset = lhOffset;
+      entry = { fileName, compMethod, compSize, uncompSize, localHeaderOffset: lhOffset };
       break;
     }
 
     pos += 46 + nameLen + extraLen + commentLen;
   }
 
-  if (localHeaderOffset === -1) throw new Error(`ZIP: "${targetName}" not found in archive`);
+  if (!entry) throw new Error(`ZIP: "${targetName}" not found in archive`);
+  if (entry.compSize === 0xffffffff || entry.uncompSize === 0xffffffff) {
+    throw new Error(`ZIP: "${entry.fileName}" uses ZIP64, which is not supported`);
+  }
 
   // Read Local File Header to get the actual data offset
-  const lfh = localHeaderOffset;
+  const lfh = entry.localHeaderOffset;
   if (buf.readUInt32LE(lfh) !== 0x04034b50) throw new Error("ZIP: bad Local File Header");
   const lfhNameLen = buf.readUInt16LE(lfh + 26);
   const lfhExtraLen = buf.readUInt16LE(lfh + 28);
   const dataOffset = lfh + 30 + lfhNameLen + lfhExtraLen;
+  const dataEnd = dataOffset + entry.compSize;
 
-  // Re-read sizes from the Local File Header (data descriptor may shift values)
   const lfhCompMethod = buf.readUInt16LE(lfh + 8);
-  const lfhCompSize = buf.readUInt32LE(lfh + 18);
-  const lfhUncompSize = buf.readUInt32LE(lfh + 22);
+  if (lfhCompMethod !== entry.compMethod) {
+    throw new Error("ZIP: Local File Header and Central Directory compression methods differ");
+  }
+  if (dataEnd > buf.length) throw new Error("ZIP: compressed data extends past archive end");
 
-  const compData = buf.subarray(dataOffset, dataOffset + lfhCompSize);
+  // The Local File Header can store zero sizes when a data descriptor is used.
+  // Central Directory values are authoritative for locating the file data.
+  const compData = buf.subarray(dataOffset, dataEnd);
 
-  if (lfhCompMethod === 0) {
+  if (entry.compMethod === 0) {
     // Stored (no compression)
     return compData;
   }
 
-  if (lfhCompMethod === 8) {
+  if (entry.compMethod === 8) {
     // Deflated
-    return new Promise((resolve, reject) => {
+    const inflated = await new Promise((resolve, reject) => {
       const chunks = [];
       createInflateRaw()
         .on("data", (c) => chunks.push(c))
@@ -173,9 +180,13 @@ async function extractZip(archivePath, targetName) {
         .on("error", reject)
         .end(compData);
     });
+    if (inflated.length !== entry.uncompSize) {
+      throw new Error(`ZIP: extracted size mismatch for "${entry.fileName}"`);
+    }
+    return inflated;
   }
 
-  throw new Error(`ZIP: unsupported compression method ${lfhCompMethod}`);
+  throw new Error(`ZIP: unsupported compression method ${entry.compMethod}`);
 }
 
 // ── Main download + extract ──────────────────────────────
@@ -203,34 +214,40 @@ async function downloadCaddy(version, osArch, archive, targetName) {
 
 // ── Entry point ──────────────────────────────────────────
 
-const argVersion = process.argv[2] || "";
-const argPlatform = process.argv[3] || "";
+async function main() {
+  const argVersion = process.argv[2] || "";
+  const argPlatform = process.argv[3] || "";
 
-mkdirSync(BIN_DIR, { recursive: true });
+  mkdirSync(BIN_DIR, { recursive: true });
 
-const version = argVersion || await getLatestVersion();
-if (!argVersion) console.log(`Latest version: v${version}`);
+  const version = argVersion || await getLatestVersion();
+  if (!argVersion) console.log(`Latest version: v${version}`);
 
-const platforms = argPlatform
-  ? (argPlatform === "all" ? Object.keys(TARGETS) : [argPlatform])
-  : [detectPlatform()];
+  const platforms = argPlatform
+    ? (argPlatform === "all" ? Object.keys(TARGETS) : [argPlatform])
+    : [detectPlatform()];
 
-for (const plat of platforms) {
-  if (!plat || !TARGETS[plat]) {
-    console.error(`Unknown or unsupported platform: ${plat}`);
-    console.error(`Usage: node scripts/download-caddy.mjs [version] [linux|macos-arm|macos-intel|windows|all]`);
-    process.exit(1);
+  for (const plat of platforms) {
+    if (!plat || !TARGETS[plat]) {
+      console.error(`Unknown or unsupported platform: ${plat}`);
+      console.error(`Usage: node scripts/download-caddy.mjs [version] [linux|macos-arm|macos-intel|windows|all]`);
+      process.exit(1);
+    }
+
+    const t = TARGETS[plat];
+    const targetPath = join(BIN_DIR, t.name);
+
+    if (existsSync(targetPath)) {
+      console.log(`Already exists, skipping: ${t.name}`);
+      continue;
+    }
+
+    await downloadCaddy(version, t.osArch, t.archive, t.name);
   }
 
-  const t = TARGETS[plat];
-  const targetPath = join(BIN_DIR, t.name);
-
-  if (existsSync(targetPath)) {
-    console.log(`Already exists, skipping: ${t.name}`);
-    continue;
-  }
-
-  await downloadCaddy(version, t.osArch, t.archive, t.name);
+  console.log(`\nAll done! Binaries in: ${BIN_DIR}`);
 }
 
-console.log(`\nAll done! Binaries in: ${BIN_DIR}`);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
+}
