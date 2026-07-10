@@ -1,12 +1,13 @@
 use anyhow::Result;
 use std::time::Instant;
-use tauri::{AppHandle, Manager as TauriManager};
+use tauri::AppHandle;
+use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
 
 pub struct CaddyProcess {
     pid: u32,
     started_at: Instant,
-    child: tauri_plugin_shell::SidecarCommandChild,
+    child: CommandChild,
 }
 
 pub struct Manager {
@@ -16,10 +17,7 @@ pub struct Manager {
 
 impl Manager {
     pub fn new(app: AppHandle) -> Self {
-        Self {
-            app,
-            process: None,
-        }
+        Self { app, process: None }
     }
 
     pub async fn start(&mut self) -> Result<()> {
@@ -53,7 +51,7 @@ impl Manager {
     }
 
     pub async fn stop(&mut self) -> Result<()> {
-        if let Some(mut proc) = self.process.take() {
+        if let Some(proc) = self.process.take() {
             // Try graceful stop via caddy stop command
             let shell = self.app.shell();
             if let Ok(stop_cmd) = shell.sidecar("binaries/caddy") {

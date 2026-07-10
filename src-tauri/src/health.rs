@@ -1,7 +1,6 @@
 use crate::logger::Logger;
 use crate::model::HealthStatus;
 use crate::store::Store;
-use anyhow::Result;
 use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -29,12 +28,7 @@ impl HealthChecker {
         }
     }
 
-    pub async fn start(
-        &mut self,
-        store: Arc<RwLock<Store>>,
-        logger: Arc<Logger>,
-        app: AppHandle,
-    ) {
+    pub async fn start(&mut self, store: Arc<RwLock<Store>>, logger: Arc<Logger>, app: AppHandle) {
         self.running = true;
 
         // Initial check
@@ -170,7 +164,12 @@ impl HealthChecker {
         self.results.get(project).and_then(|envs| envs.get(env))
     }
 
-    pub async fn force_check(&mut self, store: &Arc<RwLock<Store>>, logger: &Logger, app: &AppHandle) {
+    pub async fn force_check(
+        &mut self,
+        store: &Arc<RwLock<Store>>,
+        logger: &Logger,
+        app: &AppHandle,
+    ) {
         self.check_all(store, logger, app).await;
     }
 }
@@ -178,7 +177,11 @@ impl HealthChecker {
 fn parse_health_url(addr: &str) -> String {
     if addr.starts_with("http://") || addr.starts_with("https://") {
         if let Ok(url) = url::Url::parse(addr) {
-            return format!("{}://{}", url.scheme(), url.host_str().unwrap_or("localhost"));
+            return format!(
+                "{}://{}",
+                url.scheme(),
+                url.host_str().unwrap_or("localhost")
+            );
         }
     }
     format!("http://{}", addr)

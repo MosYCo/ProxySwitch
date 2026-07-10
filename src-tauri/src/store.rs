@@ -1,6 +1,5 @@
 use crate::model::{Config, Environment, Project};
 use anyhow::{Context, Result};
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -27,8 +26,7 @@ impl Store {
     fn load(&mut self) -> Result<()> {
         let data = fs::read_to_string(&self.file_path)
             .with_context(|| format!("reading config from {}", self.file_path.display()))?;
-        self.config = serde_json::from_str(&data)
-            .with_context(|| "parsing config JSON")?;
+        self.config = serde_json::from_str(&data).with_context(|| "parsing config JSON")?;
         Ok(())
     }
 
@@ -37,10 +35,7 @@ impl Store {
         let dir = self.file_path.parent().unwrap_or(Path::new("."));
         fs::create_dir_all(dir)?;
 
-        let tmp_name = dir.join(format!(
-            ".config-{}.json.tmp",
-            uuid::Uuid::new_v4()
-        ));
+        let tmp_name = dir.join(format!(".config-{}.json.tmp", uuid::Uuid::new_v4()));
         fs::write(&tmp_name, &data)?;
         fs::rename(&tmp_name, &self.file_path).or_else(|_| {
             // Fallback: direct write if rename fails (cross-filesystem)
@@ -88,9 +83,7 @@ impl Store {
             .get_mut(project_name)
             .context("project not found")?;
 
-        project
-            .environments
-            .insert(env_name.to_string(), env);
+        project.environments.insert(env_name.to_string(), env);
 
         if project.current.is_empty() {
             project.current = env_name.to_string();
@@ -114,11 +107,7 @@ impl Store {
         self.save()
     }
 
-    pub fn set_current_environment(
-        &mut self,
-        project_name: &str,
-        env_name: &str,
-    ) -> Result<()> {
+    pub fn set_current_environment(&mut self, project_name: &str, env_name: &str) -> Result<()> {
         let project = self
             .config
             .projects
@@ -133,11 +122,7 @@ impl Store {
         self.save()
     }
 
-    pub fn build_with_current(
-        &self,
-        project_name: &str,
-        env_name: &str,
-    ) -> Result<Config> {
+    pub fn build_with_current(&self, project_name: &str, env_name: &str) -> Result<Config> {
         let project = self
             .config
             .projects
@@ -149,11 +134,7 @@ impl Store {
         }
 
         let mut config = self.config.clone();
-        config
-            .projects
-            .get_mut(project_name)
-            .unwrap()
-            .current = env_name.to_string();
+        config.projects.get_mut(project_name).unwrap().current = env_name.to_string();
 
         Ok(config)
     }

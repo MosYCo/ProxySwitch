@@ -29,7 +29,9 @@ pub async fn create_project(
     validation::validate_project(&project).map_err(|e| e.to_string())?;
 
     let mut store = state.store.write().await;
-    store.set_project(project.clone()).map_err(|e| e.to_string())?;
+    store
+        .set_project(project.clone())
+        .map_err(|e| e.to_string())?;
 
     state
         .logger
@@ -55,7 +57,9 @@ pub async fn update_project(
     updated.name = name.clone();
     validation::validate_project(&updated).map_err(|e| e.to_string())?;
 
-    store.set_project(updated.clone()).map_err(|e| e.to_string())?;
+    store
+        .set_project(updated.clone())
+        .map_err(|e| e.to_string())?;
 
     // Reload Caddy config
     let config = store.get_config().clone();
@@ -210,9 +214,10 @@ pub async fn switch_environment(
         .await
         .map_err(|e| e.to_string())?;
 
-    state
-        .logger
-        .info("proxy", &format!("环境已切换: {} → {}", project, environment));
+    state.logger.info(
+        "proxy",
+        &format!("环境已切换: {} → {}", project, environment),
+    );
 
     Ok(())
 }

@@ -39,15 +39,12 @@ fn main() {
             let config_path = config_dir.join("config.json");
 
             // Resolve log dir
-            let log_dir = app
-                .path()
-                .app_log_dir()
-                .expect("failed to resolve log dir");
+            let log_dir = app.path().app_log_dir().expect("failed to resolve log dir");
             std::fs::create_dir_all(&log_dir).ok();
 
             // Initialize store
-            let store = Store::new(config_path.to_str().unwrap())
-                .expect("failed to initialize store");
+            let store =
+                Store::new(config_path.to_str().unwrap()).expect("failed to initialize store");
 
             // Get caddy admin URL from config
             let caddy_admin = {
@@ -69,8 +66,8 @@ fn main() {
             let health_checker = HealthChecker::new(std::time::Duration::from_secs(30));
 
             // Initialize logger
-            let logger = Logger::new(log_dir.to_str().unwrap())
-                .expect("failed to initialize logger");
+            let logger =
+                Logger::new(log_dir.to_str().unwrap()).expect("failed to initialize logger");
 
             // Create app state
             let state = AppState {
@@ -116,7 +113,11 @@ fn main() {
                 let state = app_handle.state::<AppState>();
                 let mut checker = state.health_checker.write().await;
                 checker
-                    .start(state.store.clone(), state.logger.clone(), app_handle.clone())
+                    .start(
+                        state.store.clone(),
+                        state.logger.clone(),
+                        app_handle.clone(),
+                    )
                     .await;
             });
 

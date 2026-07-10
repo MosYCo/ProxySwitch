@@ -35,8 +35,9 @@ impl Logger {
         entries.push(entry);
 
         // Keep only last 1000 entries in memory
-        if entries.len() > 1000 {
-            entries.drain(0..entries.len() - 1000);
+        let overflow = entries.len().saturating_sub(1000);
+        if overflow > 0 {
+            entries.drain(0..overflow);
         }
     }
 
