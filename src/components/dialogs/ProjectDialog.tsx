@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Plus, Pencil, Trash2, AlertCircle } from "lucide-react"
+import { Plus, Pencil, Trash2, AlertCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,6 +11,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import type { Project } from "@/api"
 
@@ -18,8 +29,10 @@ interface ProjectDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   project?: Project | null
-  onSave: (project: Omit<Project, "current"> & { current?: string }) => void
-  onDelete?: () => void
+  onSave: (
+    project: Omit<Project, "current"> & { current?: string }
+  ) => Promise<boolean> | boolean
+  onDelete?: () => Promise<boolean> | boolean
 }
 
 export function ProjectDialog({
@@ -33,6 +46,8 @@ export function ProjectDialog({
   const [listen, setListen] = useState("")
   const [desc, setDesc] = useState("")
   const [error, setError] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const isEditing = !!project
 
@@ -49,7 +64,7 @@ export function ProjectDialog({
     setError("")
   }, [project, open])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
 
@@ -68,14 +83,35 @@ export function ProjectDialog({
       formattedListen = ":" + formattedListen
     }
 
-    onSave({
-      name: name.trim(),
-      listen: formattedListen,
-      desc: desc.trim(),
-      environments: project?.environments || {},
-      current: project?.current || "",
-    })
-    onOpenChange(false)
+    try {
+      setSaving(true)
+      const saved = await onSave({
+        name: name.trim(),
+        listen: formattedListen,
+        desc: desc.trim(),
+        environments: project?.environments || {},
+        current: project?.current || "",
+      })
+      if (saved) {
+        onOpenChange(false)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!onDelete) return
+
+    try {
+      setDeleting(true)
+      const deleted = await onDelete()
+      if (deleted) {
+        onOpenChange(false)
+      }
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -108,7 +144,7 @@ export function ProjectDialog({
               onChange={(e) => setName(e.target.value)}
               placeholder="例如: frontend-a"
               className="font-mono text-sm"
-              disabled={isEditing}
+              disabled={isEditing || saving || deleting}
             />
             <p className="text-[10px] text-muted-foreground">
               用于标识项目的唯一名称，创建后不可修改
@@ -125,6 +161,7 @@ export function ProjectDialog({
               onChange={(e) => setListen(e.target.value)}
               placeholder="例如: :3000 或 3000"
               className="font-mono text-sm"
+              disabled={saving || deleting}
             />
             <p className="text-[10px] text-muted-foreground">
               Caddy 监听的端口号，会自动添加 : 前缀
@@ -141,6 +178,7 @@ export function ProjectDialog({
               onChange={(e) => setDesc(e.target.value)}
               placeholder="例如: 前端项目 A"
               className="text-sm"
+              disabled={saving || deleting}
             />
             <p className="text-[10px] text-muted-foreground">
               可选，用于在界面上显示的项目说明
@@ -163,24 +201,57 @@ export function ProjectDialog({
 
           <DialogFooter className="gap-2 pt-4">
             {isEditing && onDelete && (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={() => {
-                  onDelete()
-                  onOpenChange(false)
-                }}
-                className="mr-auto"
-              >
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                删除项目
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="mr-auto"
+                    disabled={saving || deleting}
+                  >
+                    {deleting ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    删除项目
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="bg-card border-border">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>删除项目</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      将删除项目「{project.name}」及其所有环境配置。此操作不可撤销。
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={handleDelete}
+                      disabled={deleting}
+                    >
+                      确认删除
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={saving || deleting}
+            >
               取消
             </Button>
-            <Button type="submit">
-              {isEditing ? (
+            <Button type="submit" disabled={saving || deleting}>
+              {saving ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  保存中
+                </>
+              ) : isEditing ? (
                 <>
                   <Pencil className="mr-1.5 h-3.5 w-3.5" />
                   保存修改

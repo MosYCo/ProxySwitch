@@ -89,6 +89,11 @@ pub struct CaddyStatus {
     pub error: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CaddySettings {
+    pub admin: String,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {

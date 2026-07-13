@@ -6,6 +6,7 @@ import type {
   HealthStatus,
   LogEntry,
   CaddyStatus,
+  CaddySettings,
 } from "./types"
 
 // Project API
@@ -77,6 +78,11 @@ export const logApi = {
 // Caddy API
 export const caddyApi = {
   getStatus: () => invoke<CaddyStatus>("get_caddy_status"),
+
+  getSettings: () => invoke<CaddySettings>("get_caddy_settings"),
+
+  updateSettings: (admin: string) =>
+    invoke<CaddySettings>("update_caddy_settings", { admin }),
 
   start: () => invoke<void>("start_caddy"),
 

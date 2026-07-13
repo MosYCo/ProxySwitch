@@ -1,10 +1,11 @@
 use crate::model::Config;
 use anyhow::Result;
 use reqwest::Client as HttpClient;
+use std::sync::RwLock;
 use std::time::Duration;
 
 pub struct Client {
-    admin_url: String,
+    admin_url: RwLock<String>,
     http: HttpClient,
 }
 
@@ -12,7 +13,7 @@ impl Client {
     pub fn new(admin_url: &str) -> Self {
         let admin_url = normalize_admin_url(admin_url);
         Self {
-            admin_url,
+            admin_url: RwLock::new(admin_url),
             http: HttpClient::builder()
                 .timeout(Duration::from_secs(10))
                 .build()
@@ -22,11 +23,17 @@ impl Client {
 
     pub async fn load_config(&self, config: &Config) -> Result<()> {
         let caddy_config = super::generate_caddy_config(config);
-        self.post_config(&caddy_config).await
+        self.post_config(&self.admin_url(), &caddy_config).await
     }
 
-    async fn post_config(&self, config: &serde_json::Value) -> Result<()> {
-        let url = format!("{}/load", self.admin_url);
+    pub async fn load_config_via(&self, admin_url: &str, config: &Config) -> Result<()> {
+        let caddy_config = super::generate_caddy_config(config);
+        self.post_config(&normalize_admin_url(admin_url), &caddy_config)
+            .await
+    }
+
+    async fn post_config(&self, admin_url: &str, config: &serde_json::Value) -> Result<()> {
+        let url = format!("{}/load", admin_url);
         let resp = self
             .http
             .post(&url)
@@ -44,7 +51,7 @@ impl Client {
     }
 
     pub async fn get_config(&self) -> Result<serde_json::Value> {
-        let url = format!("{}/config/", self.admin_url);
+        let url = format!("{}/config/", self.admin_url());
         let resp = self
             .http
             .get(&url)
@@ -64,7 +71,7 @@ impl Client {
     }
 
     pub async fn health_check(&self) -> Result<()> {
-        let url = format!("{}/config/", self.admin_url);
+        let url = format!("{}/config/", self.admin_url());
         let resp = self
             .http
             .get(&url)
@@ -77,6 +84,15 @@ impl Client {
         }
 
         Ok(())
+    }
+
+    pub fn set_admin_url(&self, admin_url: &str) {
+        let mut current = self.admin_url.write().unwrap();
+        *current = normalize_admin_url(admin_url);
+    }
+
+    pub fn admin_url(&self) -> String {
+        self.admin_url.read().unwrap().clone()
     }
 }
 

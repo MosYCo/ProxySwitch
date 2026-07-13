@@ -50,6 +50,11 @@ impl Store {
         &self.config
     }
 
+    pub fn set_caddy_admin(&mut self, admin: String) -> Result<()> {
+        self.config.caddy_admin = admin;
+        self.save()
+    }
+
     pub fn get_project(&self, name: &str) -> Option<&Project> {
         self.config.projects.get(name)
     }

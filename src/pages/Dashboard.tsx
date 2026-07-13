@@ -9,6 +9,7 @@ import { ProjectToolbar } from "@/components/ProjectToolbar"
 import { EmptyState } from "@/components/EmptyState"
 import { ProjectDialog } from "@/components/dialogs/ProjectDialog"
 import { EnvironmentDialog } from "@/components/dialogs/EnvironmentDialog"
+import { CaddySettingsDialog } from "@/components/dialogs/CaddySettingsDialog"
 import { useProjects } from "@/hooks/useProjects"
 import { useWebSocket } from "@/hooks/useWebSocket"
 import { useCaddyStatus } from "@/hooks/useCaddyStatus"
@@ -34,6 +35,11 @@ export function Dashboard() {
   } = useProjects()
 
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
+  const [caddySettingsOpen, setCaddySettingsOpen] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [restartingProxy, setRestartingProxy] = useState(false)
+  const [switchingEnv, setSwitchingEnv] = useState<string | null>(null)
+  const [caddyAction, setCaddyAction] = useState<"start" | "stop" | "restart" | null>(null)
 
   const { isConnected, on } = useWebSocket("/ws/events")
 
@@ -44,6 +50,7 @@ export function Dashboard() {
     startCaddy,
     stopCaddy,
     restartCaddy,
+    refresh: refreshCaddyStatus,
   } = useCaddyStatus(() => {
     refresh()
     refreshHealth()
@@ -87,6 +94,14 @@ export function Dashboard() {
   useEffect(() => {
     if (projects.length > 0 && !selectedProject) {
       setSelectedProject(projects[0].name)
+    } else if (
+      selectedProject &&
+      projects.length > 0 &&
+      !projects.some((project) => project.name === selectedProject)
+    ) {
+      setSelectedProject(projects[0].name)
+    } else if (projects.length === 0 && selectedProject) {
+      setSelectedProject(null)
     }
   }, [projects, selectedProject])
 
@@ -113,46 +128,84 @@ export function Dashboard() {
 
   const handleSwitch = async (envName: string) => {
     if (selectedProject) {
-      await switchEnvironment(selectedProject, envName)
+      try {
+        setSwitchingEnv(envName)
+        await switchEnvironment(selectedProject, envName)
+      } finally {
+        setSwitchingEnv(null)
+      }
     }
   }
 
-  const handleRefresh = () => {
-    refresh()
-    refreshHealth()
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true)
+      await Promise.all([refresh(), refreshHealth(), refreshCaddyStatus()])
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  const handleCaddyAction = async (action: "start" | "stop" | "restart") => {
+    try {
+      setCaddyAction(action)
+      if (action === "start") {
+        await startCaddy()
+      } else if (action === "stop") {
+        await stopCaddy()
+      } else {
+        await restartCaddy()
+      }
+    } finally {
+      setCaddyAction(null)
+    }
+  }
+
+  const handleRestartProxy = async () => {
+    try {
+      setRestartingProxy(true)
+      await proxyApi.restart()
+      await refresh()
+    } finally {
+      setRestartingProxy(false)
+    }
   }
 
   const handleSaveProject = async (
     project: Omit<Project, "current"> & { current?: string }
   ) => {
     if (editingProject) {
-      await updateProject(editingProject.name, project)
-    } else {
-      await createProject(project)
+      return updateProject(editingProject.name, project)
     }
+    return createProject(project)
   }
 
   const handleDeleteProject = async () => {
     if (editingProject) {
-      await deleteProject(editingProject.name)
-      setSelectedProject(null)
+      const deleted = await deleteProject(editingProject.name)
+      if (deleted) {
+        setSelectedProject(null)
+      }
+      return deleted
     }
+    return false
   }
 
   const handleSaveEnv = async (name: string, env: Environment) => {
     if (selectedProject) {
       if (editingEnvName) {
-        await updateEnvironment(selectedProject, name, env)
-      } else {
-        await createEnvironment(selectedProject, name, env)
+        return updateEnvironment(selectedProject, name, env)
       }
+      return createEnvironment(selectedProject, name, env)
     }
+    return false
   }
 
   const handleDeleteEnv = async (envName: string) => {
     if (selectedProject) {
-      await deleteEnvironment(selectedProject, envName)
+      return deleteEnvironment(selectedProject, envName)
     }
+    return false
   }
 
   const handleEditProject = () => {
@@ -190,13 +243,16 @@ export function Dashboard() {
         isCaddyActive={isCaddyActive}
         canManageCaddy={canManageCaddy}
         caddyManaged={caddyStatus?.managed}
-        onStart={startCaddy}
-        onStop={stopCaddy}
-        onRestart={restartCaddy}
+        onStart={() => handleCaddyAction("start")}
+        onStop={() => handleCaddyAction("stop")}
+        onRestart={() => handleCaddyAction("restart")}
         onRefresh={handleRefresh}
+        onSettings={() => setCaddySettingsOpen(true)}
+        refreshing={refreshing}
+        caddyAction={caddyAction}
       />
 
-      <main className="container px-4 py-4 space-y-4">
+      <main className="container px-3 py-4 space-y-4 sm:px-4">
         {/* 错误信息 */}
         {error && (
           <Card className="border-destructive/30 bg-destructive/5">
@@ -226,7 +282,8 @@ export function Dashboard() {
           onAddProject={openAddProject}
           onEditProject={handleEditProject}
           onAddEnv={openAddEnv}
-          onRestartProxy={() => proxyApi.restart()}
+          onRestartProxy={handleRestartProxy}
+          restartingProxy={restartingProxy}
         />
 
         {/* 环境列表 */}
@@ -243,6 +300,8 @@ export function Dashboard() {
                   onSwitch={() => handleSwitch(envName)}
                   onEdit={() => handleEditEnv(envName)}
                   onDelete={() => handleDeleteEnv(envName)}
+                  switching={switchingEnv === envName}
+                  disabled={switchingEnv !== null}
                 />
               )
             )}
@@ -276,6 +335,15 @@ export function Dashboard() {
           onDelete={handleDeleteEnv}
         />
       )}
+
+      <CaddySettingsDialog
+        open={caddySettingsOpen}
+        onOpenChange={setCaddySettingsOpen}
+        onSaved={() => {
+          refreshCaddyStatus()
+          refresh()
+        }}
+      />
     </div>
   )
 }

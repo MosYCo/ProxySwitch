@@ -5,7 +5,7 @@
   "identifier": "com.caddy-proxy-tools.desktop",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:12000",
+    "devUrl": "http://localhost:13000",
     "beforeDevCommand": "pnpm download-caddy && pnpm dev",
     "beforeBuildCommand": "pnpm download-caddy && pnpm build"
   },
@@ -43,17 +43,5 @@
     ],
     "externalBin": ["binaries/caddy"],
     "resources": []
-  },
-  "plugins": {
-    "shell": {
-      "sidecar": true,
-      "scope": [
-        {
-          "name": "binaries/caddy",
-          "sidecar": true,
-          "args": true
-        }
-      ]
-    }
   }
 }

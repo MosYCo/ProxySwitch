@@ -336,9 +336,61 @@ pub async fn get_caddy_status(state: State<'_, AppState>) -> Result<CaddyStatus,
 }
 
 #[tauri::command]
+pub async fn get_caddy_settings(state: State<'_, AppState>) -> Result<CaddySettings, String> {
+    let store = state.store.read().await;
+    Ok(CaddySettings {
+        admin: store.get_config().caddy_admin.clone(),
+    })
+}
+
+#[tauri::command]
+pub async fn update_caddy_settings(
+    state: State<'_, AppState>,
+    admin: String,
+) -> Result<CaddySettings, String> {
+    let admin = normalize_caddy_admin_listen(&admin)?;
+    let config = {
+        let mut store = state.store.write().await;
+        store
+            .set_caddy_admin(admin.clone())
+            .map_err(|e| e.to_string())?;
+        store.get_config().clone()
+    };
+
+    let apply_result = match state.caddy_client.load_config(&config).await {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            state
+                .caddy_client
+                .load_config_via("localhost:2019", &config)
+                .await
+        }
+    };
+
+    match apply_result {
+        Ok(()) => {
+            state.caddy_client.set_admin_url(&admin);
+            state
+                .logger
+                .info("caddy", &format!("Caddy 管理地址已更新: {}", admin));
+        }
+        Err(e) => {
+            state.logger.warn(
+                "caddy",
+                &format!("Caddy 管理地址已保存，但当前未能应用: {}", e),
+            );
+        }
+    }
+
+    Ok(CaddySettings { admin })
+}
+
+#[tauri::command]
 pub async fn start_caddy(state: State<'_, AppState>) -> Result<(), String> {
     let mut mgr = state.caddy_manager.write().await;
-    mgr.start().await.map_err(|e| e.to_string())?;
+    mgr.start(state.logger.clone())
+        .await
+        .map_err(|e| e.to_string())?;
 
     state.logger.info("caddy", "Caddy 已启动");
 
@@ -347,10 +399,16 @@ pub async fn start_caddy(state: State<'_, AppState>) -> Result<(), String> {
     let store = state.store.read().await;
     let config = store.get_config().clone();
     drop(store);
-    if let Err(e) = state.caddy_client.load_config(&config).await {
+    if let Err(e) = state
+        .caddy_client
+        .load_config_via("localhost:2019", &config)
+        .await
+    {
         state
             .logger
             .warn("caddy", &format!("加载 Caddy 配置失败: {}", e));
+    } else {
+        state.caddy_client.set_admin_url(&config.caddy_admin);
     }
 
     Ok(())
@@ -369,7 +427,9 @@ pub async fn stop_caddy(state: State<'_, AppState>) -> Result<(), String> {
 #[tauri::command]
 pub async fn restart_caddy(state: State<'_, AppState>) -> Result<(), String> {
     let mut mgr = state.caddy_manager.write().await;
-    mgr.restart().await.map_err(|e| e.to_string())?;
+    mgr.restart(state.logger.clone())
+        .await
+        .map_err(|e| e.to_string())?;
 
     state.logger.info("caddy", "Caddy 已重启");
 
@@ -378,11 +438,44 @@ pub async fn restart_caddy(state: State<'_, AppState>) -> Result<(), String> {
     let store = state.store.read().await;
     let config = store.get_config().clone();
     drop(store);
-    if let Err(e) = state.caddy_client.load_config(&config).await {
+    if let Err(e) = state
+        .caddy_client
+        .load_config_via("localhost:2019", &config)
+        .await
+    {
         state
             .logger
             .warn("caddy", &format!("加载 Caddy 配置失败: {}", e));
+    } else {
+        state.caddy_client.set_admin_url(&config.caddy_admin);
     }
 
     Ok(())
+}
+
+fn normalize_caddy_admin_listen(input: &str) -> Result<String, String> {
+    let value = input.trim();
+    if value.is_empty() {
+        return Err("管理地址不能为空".to_string());
+    }
+
+    if value.starts_with("http://") || value.starts_with("https://") {
+        let url = url::Url::parse(value).map_err(|e| format!("管理地址格式无效: {}", e))?;
+        if url.path() != "/" || url.query().is_some() || url.fragment().is_some() {
+            return Err("管理地址不能包含路径、查询参数或片段".to_string());
+        }
+        let host = url
+            .host_str()
+            .ok_or_else(|| "管理地址缺少主机名".to_string())?;
+        let port = url
+            .port()
+            .ok_or_else(|| "管理地址必须包含端口".to_string())?;
+        return Ok(format!("{}:{}", host, port));
+    }
+
+    if !value.contains(':') {
+        return Err("管理地址必须包含端口，例如 localhost:2019 或 :2019".to_string());
+    }
+
+    Ok(value.to_string())
 }

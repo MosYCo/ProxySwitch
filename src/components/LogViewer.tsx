@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Trash2, RefreshCw, Terminal, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -10,6 +10,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { logApi } from "@/api"
 import type { LogEntry } from "@/api"
 import { cn } from "@/lib/utils"
@@ -17,6 +28,8 @@ import { cn } from "@/lib/utils"
 interface LogViewerProps {
   maxEntries?: number
 }
+
+type LogView = "all" | "runtime" | "caddy"
 
 const levelConfig: Record<string, { color: string; variant: "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "info" | "ghost" }> = {
   DEBUG: { color: "text-muted-foreground", variant: "ghost" },
@@ -32,24 +45,20 @@ const categoryLabels: Record<string, string> = {
   caddy: "服务",
 }
 
+const runtimeCategories = new Set(["system", "proxy", "health"])
+
 export function LogViewer({ maxEntries = 100 }: LogViewerProps) {
   const [logs, setLogs] = useState<LogEntry[]>([])
+  const [view, setView] = useState<LogView>("all")
   const [levelFilter, setLevelFilter] = useState<string>("all")
-  const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [loading, setLoading] = useState(false)
+  const [stickToBottom, setStickToBottom] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     try {
       setLoading(true)
-      let data: LogEntry[]
-      if (levelFilter !== "all") {
-        data = await logApi.getByLevel(levelFilter)
-      } else if (categoryFilter !== "all") {
-        data = await logApi.getByCategory(categoryFilter)
-      } else {
-        data = await logApi.getRecent(maxEntries)
-      }
+      const data = await logApi.getRecent(maxEntries)
       setLogs(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error("Failed to fetch logs:", error)
@@ -57,19 +66,28 @@ export function LogViewer({ maxEntries = 100 }: LogViewerProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [maxEntries])
 
   useEffect(() => {
     fetchLogs()
     const interval = setInterval(fetchLogs, 15000)
     return () => clearInterval(interval)
-  }, [levelFilter, categoryFilter])
+  }, [fetchLogs])
 
   useEffect(() => {
-    if (containerRef.current) {
+    if (containerRef.current && stickToBottom) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight
     }
-  }, [logs])
+  }, [logs, stickToBottom])
+
+  const handleScroll = () => {
+    const container = containerRef.current
+    if (!container) return
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight
+    setStickToBottom(distanceFromBottom < 24)
+  }
 
   const handleClear = async () => {
     try {
@@ -90,22 +108,66 @@ export function LogViewer({ maxEntries = 100 }: LogViewerProps) {
     })
   }
 
-  const categories = Array.from(new Set(logs.filter(log => log?.category).map((log) => log.category)))
+  const filteredLogs = logs.filter((log) => {
+    const matchesLevel = levelFilter === "all" || log.level === levelFilter
+    const matchesView =
+      view === "all" ||
+      (view === "caddy" && log.category === "caddy") ||
+      (view === "runtime" && runtimeCategories.has(log.category))
+
+    return matchesLevel && matchesView
+  })
+
+  const counts = logs.reduce(
+    (acc, log) => {
+      acc.all += 1
+      if (log.category === "caddy") {
+        acc.caddy += 1
+      } else if (runtimeCategories.has(log.category)) {
+        acc.runtime += 1
+      }
+      return acc
+    },
+    { all: 0, runtime: 0, caddy: 0 }
+  )
+
+  const viewOptions: Array<{ value: LogView; label: string; count: number }> = [
+    { value: "all", label: "全部", count: counts.all },
+    { value: "runtime", label: "系统运行", count: counts.runtime },
+    { value: "caddy", label: "Caddy", count: counts.caddy },
+  ]
 
   return (
     <Card className="border-border/50">
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-2">
             <Terminal className="h-4 w-4 text-primary" />
             <CardTitle className="text-sm font-display font-semibold tracking-wide">
               系统日志
             </CardTitle>
             <Badge variant="outline" className="text-[10px] font-mono">
-              {logs.length}
+              {filteredLogs.length}/{logs.length}
             </Badge>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex rounded-sm border border-border/50 bg-muted/30 p-0.5">
+              {viewOptions.map((option) => (
+                <Button
+                  key={option.value}
+                  type="button"
+                  variant={view === option.value ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-6 px-2 text-[11px] font-mono"
+                  onClick={() => setView(option.value)}
+                >
+                  {option.label}
+                  <span className="ml-1 text-[10px] text-muted-foreground">
+                    {option.count}
+                  </span>
+                </Button>
+              ))}
+            </div>
             <Select value={levelFilter} onValueChange={setLevelFilter}>
               <SelectTrigger className="w-[90px] h-7 text-xs font-mono">
                 <SelectValue placeholder="级别" />
@@ -118,35 +180,46 @@ export function LogViewer({ maxEntries = 100 }: LogViewerProps) {
                 <SelectItem value="ERROR" className="text-xs">错误</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-[90px] h-7 text-xs font-mono">
-                <SelectValue placeholder="分类" />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border">
-                <SelectItem value="all" className="text-xs">全部</SelectItem>
-                {categories.map((cat) => (
-                  <SelectItem key={cat} value={cat} className="text-xs">
-                    {categoryLabels[cat] || cat}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <Button
               variant="ghost"
               size="icon"
               className="h-7 w-7"
               onClick={fetchLogs}
+              disabled={loading}
+              aria-label="刷新日志"
             >
               <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-destructive hover:text-destructive"
-              onClick={handleClear}
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-destructive hover:text-destructive"
+                  disabled={logs.length === 0}
+                  aria-label="清空日志"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-card border-border">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>清空日志</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    将清空当前日志记录。此操作不可撤销。
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>取消</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={handleClear}
+                  >
+                    确认清空
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       </CardHeader>
@@ -154,15 +227,16 @@ export function LogViewer({ maxEntries = 100 }: LogViewerProps) {
         <div
           ref={containerRef}
           className="h-[250px] overflow-y-auto rounded-sm border bg-muted/30 p-2 font-mono text-xs"
+          onScroll={handleScroll}
         >
-          {logs.length === 0 ? (
+          {filteredLogs.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
               <Terminal className="h-6 w-6 opacity-30" />
-              <p className="text-xs">暂无日志</p>
+              <p className="text-xs">{logs.length === 0 ? "暂无日志" : "当前筛选无日志"}</p>
             </div>
           ) : (
             <div className="space-y-0.5">
-              {logs.map((log) => (
+              {filteredLogs.map((log) => (
                 <div
                   key={`${log.timestamp}-${log.level}-${log.category}-${log.message}`}
                   className={cn(

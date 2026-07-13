@@ -66,6 +66,9 @@ pub fn generate_caddy_config(config: &Config) -> Value {
         },
         "apps": {
             "http": {
+                "automatic_https": {
+                    "disable": true
+                },
                 "servers": servers
             }
         }
@@ -106,7 +109,7 @@ fn generate_project_route(project: &Project) -> Option<Value> {
     if scheme == "https" {
         handler["transport"] = json!({
             "protocol": "http",
-            "tls": {}
+            "tls": { "insecure_skip_verify": true }
         });
     }
 
@@ -218,3 +221,5 @@ mod tests {
         assert_eq!(scheme, "http");
     }
 }
+
+

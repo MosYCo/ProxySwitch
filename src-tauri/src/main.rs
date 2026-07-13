@@ -9,7 +9,11 @@ mod store;
 mod validation;
 
 use std::sync::Arc;
-use tauri::{AppHandle, Manager};
+use tauri::{
+    menu::{MenuBuilder, MenuItemBuilder},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Manager,
+};
 use tokio::sync::RwLock;
 
 use crate::caddy::{Client as CaddyClient, Manager as CaddyManager};
@@ -24,6 +28,36 @@ pub struct AppState {
     pub caddy_client: Arc<CaddyClient>,
     pub health_checker: Arc<RwLock<HealthChecker>>,
     pub logger: Arc<Logger>,
+}
+
+const TRAY_SHOW_ID: &str = "tray_show";
+const TRAY_QUIT_ID: &str = "tray_quit";
+
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        window.show().ok();
+        window.unminimize().ok();
+        window.set_focus().ok();
+    }
+}
+
+fn quit_app(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        {
+            let state = app.state::<AppState>();
+            let mut mgr = state.caddy_manager.write().await;
+            if let Err(e) = mgr.stop().await {
+                state
+                    .logger
+                    .warn("caddy", &format!("退出时停止 Caddy 失败: {}", e));
+                tracing::warn!("Failed to stop Caddy while quitting: {}", e);
+            } else {
+                state.logger.info("system", "应用正在退出");
+            }
+        }
+
+        app.exit(0);
+    });
 }
 
 fn main() {
@@ -81,14 +115,75 @@ fn main() {
 
             app.manage(state);
 
+            let show_item = MenuItemBuilder::with_id(TRAY_SHOW_ID, "显示主窗口").build(app)?;
+            let quit_item = MenuItemBuilder::with_id(TRAY_QUIT_ID, "退出").build(app)?;
+            let tray_menu = MenuBuilder::new(app)
+                .item(&show_item)
+                .separator()
+                .item(&quit_item)
+                .build()?;
+
+            if let Some(tray) = app.tray_by_id("main") {
+                tray.set_menu(Some(tray_menu))?;
+                tray.on_menu_event(|app, event| match event.id().as_ref() {
+                    TRAY_SHOW_ID => show_main_window(app),
+                    TRAY_QUIT_ID => quit_app(app.clone()),
+                    _ => {}
+                });
+                tray.on_tray_icon_event(|tray, event| match event {
+                    TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    }
+                    | TrayIconEvent::DoubleClick {
+                        button: MouseButton::Left,
+                        ..
+                    } => show_main_window(tray.app_handle()),
+                    _ => {}
+                });
+            } else {
+                let mut tray_builder = TrayIconBuilder::with_id("main")
+                    .menu(&tray_menu)
+                    .tooltip("Caddy Proxy Tools")
+                    .show_menu_on_left_click(false)
+                    .on_menu_event(|app, event| match event.id().as_ref() {
+                        TRAY_SHOW_ID => show_main_window(app),
+                        TRAY_QUIT_ID => quit_app(app.clone()),
+                        _ => {}
+                    })
+                    .on_tray_icon_event(|tray, event| match event {
+                        TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        }
+                        | TrayIconEvent::DoubleClick {
+                            button: MouseButton::Left,
+                            ..
+                        } => show_main_window(tray.app_handle()),
+                        _ => {}
+                    });
+
+                if let Some(icon) = app.default_window_icon() {
+                    tray_builder = tray_builder.icon(icon.clone());
+                }
+
+                tray_builder.build(app)?;
+            }
+
             // Start Caddy sidecar
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let state = app_handle.state::<AppState>();
                 let mut mgr = state.caddy_manager.write().await;
-                if let Err(e) = mgr.start().await {
+                if let Err(e) = mgr.start(state.logger.clone()).await {
+                    state
+                        .logger
+                        .warn("caddy", &format!("启动 Caddy 失败: {}", e));
                     tracing::warn!("Failed to start Caddy: {}", e);
                 } else {
+                    state.logger.info("caddy", "Caddy 已启动");
                     tracing::info!("Caddy started");
                 }
             });
@@ -100,9 +195,18 @@ fn main() {
                 let state = app_handle.state::<AppState>();
                 let store = state.store.read().await;
                 let config = store.get_config();
-                if let Err(e) = state.caddy_client.load_config(&config).await {
+                if let Err(e) = state
+                    .caddy_client
+                    .load_config_via("localhost:2019", &config)
+                    .await
+                {
+                    state
+                        .logger
+                        .warn("caddy", &format!("加载初始 Caddy 配置失败: {}", e));
                     tracing::warn!("Failed to load initial Caddy config: {}", e);
                 } else {
+                    state.caddy_client.set_admin_url(&config.caddy_admin);
+                    state.logger.info("system", "初始代理配置已加载");
                     tracing::info!("Initial Caddy config loaded");
                 }
             });
@@ -143,6 +247,8 @@ fn main() {
             commands::get_logs_by_category,
             commands::clear_logs,
             commands::get_caddy_status,
+            commands::get_caddy_settings,
+            commands::update_caddy_settings,
             commands::start_caddy,
             commands::stop_caddy,
             commands::restart_caddy,

@@ -13,6 +13,7 @@ interface ProjectToolbarProps {
   onEditProject: () => void
   onAddEnv: () => void
   onRestartProxy: () => void
+  restartingProxy?: boolean
 }
 
 export function ProjectToolbar({
@@ -24,18 +25,19 @@ export function ProjectToolbar({
   onEditProject,
   onAddEnv,
   onRestartProxy,
+  restartingProxy = false,
 }: ProjectToolbarProps) {
   return (
     <>
       {/* 项目选择器 */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <ProjectSelector
           projects={projects}
           selected={selectedProject}
           onSelect={onSelectProject}
           onAdd={onAddProject}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           {currentProject && (
             <Button
               variant="ghost"
@@ -52,21 +54,22 @@ export function ProjectToolbar({
             size="sm"
             className="h-8 text-xs font-mono"
             onClick={onRestartProxy}
+            disabled={restartingProxy}
           >
-            <RefreshCw className="mr-1.5 h-3 w-3" />
-            重启代理
+            <RefreshCw className={restartingProxy ? "mr-1.5 h-3 w-3 animate-spin" : "mr-1.5 h-3 w-3"} />
+            {restartingProxy ? "重启中" : "重启代理"}
           </Button>
         </div>
       </div>
 
       {/* 环境标题 */}
       {currentProject && (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-display font-semibold tracking-wide">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="min-w-0 truncate text-sm font-display font-semibold tracking-wide">
               {currentProject.desc || currentProject.name}
             </h2>
-            <Badge variant="outline" className="text-[10px] font-mono">
+            <Badge variant="outline" className="flex-shrink-0 text-[10px] font-mono">
               {currentProject.listen}
             </Badge>
           </div>

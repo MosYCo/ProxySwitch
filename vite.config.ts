@@ -10,8 +10,11 @@ export default defineConfig({
     },
   },
   server: {
-    port: 12000,
+    port: 13000,
     strictPort: true,
+    watch: {
+      ignored: ["**/src-tauri/target/**", "**/src-tauri/gen/**"],
+    },
   },
   build: {
     outDir: "dist",

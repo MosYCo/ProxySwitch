@@ -44,6 +44,10 @@ export interface CaddyStatus {
   error?: string
 }
 
+export interface CaddySettings {
+  admin: string
+}
+
 export interface ApiError {
   error: string
 }
