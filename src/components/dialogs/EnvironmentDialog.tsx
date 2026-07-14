@@ -1,16 +1,7 @@
-import { useState, useEffect } from "react"
-import { Plus, Pencil, Trash2, AlertCircle, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { useEffect, useState, type FormEvent } from "react"
+import { AlertCircle, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
+import type { Environment } from "@/api"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +13,26 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import type { Environment } from "@/api"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 
 interface EnvironmentDialogProps {
   open: boolean
@@ -44,27 +54,32 @@ export function EnvironmentDialog({
   const [name, setName] = useState("")
   const [addr, setAddr] = useState("")
   const [desc, setDesc] = useState("")
+  const [insecureSkipVerify, setInsecureSkipVerify] = useState(true)
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   const isEditing = !!envName
+  const nameInvalid = error.includes("环境名称")
+  const addrInvalid = error.includes("地址")
 
   useEffect(() => {
     if (envName && environment) {
       setName(envName)
       setAddr(environment.addr)
       setDesc(environment.desc || "")
+      setInsecureSkipVerify(environment.insecure_skip_verify ?? true)
     } else {
       setName("")
       setAddr("")
       setDesc("")
+      setInsecureSkipVerify(true)
     }
     setError("")
   }, [envName, environment, open])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
     setError("")
 
     if (!name.trim()) {
@@ -76,15 +91,11 @@ export function EnvironmentDialog({
       return
     }
 
-    // 格式化地址
     let formattedAddr = addr.trim()
-
-    // 如果没有协议，添加 http://
     if (!formattedAddr.startsWith("http://") && !formattedAddr.startsWith("https://")) {
-      formattedAddr = "http://" + formattedAddr
+      formattedAddr = `http://${formattedAddr}`
     }
 
-    // 验证 URL 格式
     try {
       const url = new URL(formattedAddr)
       if (!url.hostname) {
@@ -101,10 +112,9 @@ export function EnvironmentDialog({
       const saved = await onSave(name.trim(), {
         addr: formattedAddr,
         desc: desc.trim(),
+        insecure_skip_verify: insecureSkipVerify,
       })
-      if (saved) {
-        onOpenChange(false)
-      }
+      if (saved) onOpenChange(false)
     } finally {
       setSaving(false)
     }
@@ -116,9 +126,7 @@ export function EnvironmentDialog({
     try {
       setDeleting(true)
       const deleted = await onDelete(name)
-      if (deleted) {
-        onOpenChange(false)
-      }
+      if (deleted) onOpenChange(false)
     } finally {
       setDeleting(false)
     }
@@ -126,76 +134,85 @@ export function EnvironmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px] bg-card border-border">
+      <DialogContent className="sm:max-w-[460px]">
         <DialogHeader>
-          <DialogTitle className="font-display">
-            {isEditing ? "编辑环境" : "添加环境"}
-          </DialogTitle>
-          <DialogDescription className="text-muted-foreground">
-            {isEditing ? "修改环境配置信息" : "为项目添加新的后端环境"}
+          <DialogTitle>{isEditing ? "编辑环境" : "添加环境"}</DialogTitle>
+          <DialogDescription>
+            {isEditing ? "修改环境的后端地址和连接选项" : "为当前项目添加一个后端环境"}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           {error && (
-            <div className="flex items-center gap-2 text-destructive text-sm p-2 bg-destructive/10 rounded-sm">
-              <AlertCircle className="h-4 w-4" />
-              <span>{error}</span>
-            </div>
+            <Alert variant="destructive">
+              <AlertCircle className="size-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="env-name" className="text-sm font-mono">
-              环境名称
-            </Label>
-            <Input
-              id="env-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="例如: dev1, test, prod"
-              className="font-mono text-sm"
-              disabled={isEditing || saving || deleting}
-            />
-            <p className="text-[10px] text-muted-foreground">
-              用于标识环境的唯一名称，创建后不可修改
-            </p>
-          </div>
+          <FieldGroup>
+            <Field data-invalid={nameInvalid || undefined}>
+              <FieldLabel htmlFor="env-name">环境名称</FieldLabel>
+              <Input
+                id="env-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="dev, test, prod"
+                className="font-mono"
+                disabled={isEditing || saving || deleting}
+                aria-invalid={nameInvalid}
+              />
+              <FieldDescription>创建后不可修改，用来标识环境。</FieldDescription>
+              {nameInvalid && <FieldError>{error}</FieldError>}
+            </Field>
 
-          <div className="space-y-2">
-            <Label htmlFor="addr" className="text-sm font-mono">
-              后端地址
-            </Label>
-            <Input
-              id="addr"
-              value={addr}
-              onChange={(e) => setAddr(e.target.value)}
-              placeholder="例如: http://api.example.com 或 https://10.0.1.10:8080"
-              className="font-mono text-sm"
-              disabled={saving || deleting}
-            />
-            <p className="text-[10px] text-muted-foreground">
-              支持 HTTP/HTTPS 协议，如 http://example.com、https://10.0.1.10:8080
-            </p>
-          </div>
+            <Field data-invalid={addrInvalid || undefined}>
+              <FieldLabel htmlFor="addr">后端地址</FieldLabel>
+              <Input
+                id="addr"
+                value={addr}
+                onChange={(event) => setAddr(event.target.value)}
+                placeholder="http://api.example.com 或 https://10.0.1.10:8080"
+                className="font-mono"
+                disabled={saving || deleting}
+                aria-invalid={addrInvalid}
+              />
+              <FieldDescription>
+                支持 HTTP/HTTPS；未填写协议时会默认补为 HTTP。
+              </FieldDescription>
+              {addrInvalid && <FieldError>{error}</FieldError>}
+            </Field>
 
-          <div className="space-y-2">
-            <Label htmlFor="env-desc" className="text-sm font-mono">
-              环境描述
-            </Label>
-            <Input
-              id="env-desc"
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
-              placeholder="例如: 开发环境 1"
-              className="text-sm"
-              disabled={saving || deleting}
-            />
-            <p className="text-[10px] text-muted-foreground">
-              可选，用于在界面上显示的环境说明
-            </p>
-          </div>
+            <Field>
+              <FieldLabel htmlFor="env-desc">环境描述</FieldLabel>
+              <Input
+                id="env-desc"
+                value={desc}
+                onChange={(event) => setDesc(event.target.value)}
+                placeholder="开发环境 1"
+                disabled={saving || deleting}
+              />
+              <FieldDescription>可选，用于在环境卡片中显示。</FieldDescription>
+            </Field>
 
-          <DialogFooter className="gap-2 pt-4">
+            <Field orientation="horizontal" data-disabled={saving || deleting || undefined}>
+              <FieldContent>
+                <FieldTitle>跳过 HTTPS 证书校验</FieldTitle>
+                <FieldDescription>
+                  适用于自签名证书或内网证书，HTTP 后端会忽略此选项。
+                </FieldDescription>
+              </FieldContent>
+              <Switch
+                id="insecure-skip-verify"
+                checked={insecureSkipVerify}
+                onCheckedChange={setInsecureSkipVerify}
+                disabled={saving || deleting}
+                aria-label="跳过 HTTPS 证书校验"
+              />
+            </Field>
+          </FieldGroup>
+
+          <DialogFooter className="gap-2">
             {isEditing && onDelete && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -206,14 +223,14 @@ export function EnvironmentDialog({
                     disabled={saving || deleting}
                   >
                     {deleting ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      <Loader2 className="animate-spin" data-icon="inline-start" />
                     ) : (
-                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                      <Trash2 data-icon="inline-start" />
                     )}
                     删除环境
                   </Button>
                 </AlertDialogTrigger>
-                <AlertDialogContent className="bg-card border-border">
+                <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>删除环境</AlertDialogTitle>
                     <AlertDialogDescription>
@@ -243,21 +260,13 @@ export function EnvironmentDialog({
             </Button>
             <Button type="submit" disabled={saving || deleting}>
               {saving ? (
-                <>
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  保存中
-                </>
+                <Loader2 className="animate-spin" data-icon="inline-start" />
               ) : isEditing ? (
-                <>
-                  <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                  保存修改
-                </>
+                <Pencil data-icon="inline-start" />
               ) : (
-                <>
-                  <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  添加环境
-                </>
+                <Plus data-icon="inline-start" />
               )}
+              {saving ? "保存中" : isEditing ? "保存修改" : "添加环境"}
             </Button>
           </DialogFooter>
         </form>

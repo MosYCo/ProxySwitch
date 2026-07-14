@@ -4,6 +4,8 @@ use reqwest::Client as HttpClient;
 use std::sync::RwLock;
 use std::time::Duration;
 
+pub const DEFAULT_ADMIN_LISTEN: &str = "localhost:2019";
+
 pub struct Client {
     admin_url: RwLock<String>,
     http: HttpClient,
@@ -24,6 +26,27 @@ impl Client {
     pub async fn load_config(&self, config: &Config) -> Result<()> {
         let caddy_config = super::generate_caddy_config(config);
         self.post_config(&self.admin_url(), &caddy_config).await
+    }
+
+    pub async fn load_config_with_default_admin(&self, config: &Config) -> Result<()> {
+        let caddy_config = super::generate_caddy_config(config);
+        let current = self.admin_url();
+        let default = normalize_admin_url(DEFAULT_ADMIN_LISTEN);
+
+        match self.post_config(&current, &caddy_config).await {
+            Ok(()) => Ok(()),
+            Err(first_err) if current != default => self
+                .post_config(&default, &caddy_config)
+                .await
+                .map_err(|second_err| {
+                    anyhow::anyhow!(
+                        "current admin failed: {}; default admin failed: {}",
+                        first_err,
+                        second_err
+                    )
+                }),
+            Err(first_err) => Err(first_err),
+        }
     }
 
     pub async fn load_config_via(&self, admin_url: &str, config: &Config) -> Result<()> {
@@ -105,5 +128,23 @@ fn normalize_admin_url(url: &str) -> String {
         url.trim_end_matches('/').to_string()
     } else {
         format!("http://{}", url.trim_end_matches('/'))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_admin_url;
+
+    #[test]
+    fn normalizes_admin_urls() {
+        assert_eq!(
+            normalize_admin_url("localhost:2019"),
+            "http://localhost:2019"
+        );
+        assert_eq!(
+            normalize_admin_url("http://localhost:2019/"),
+            "http://localhost:2019"
+        );
+        assert_eq!(normalize_admin_url(""), "http://localhost:2019");
     }
 }

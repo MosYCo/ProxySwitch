@@ -28,22 +28,20 @@ pub fn generate_caddy_config(config: &Config) -> Value {
     for (i, (listen, projects)) in projects_by_listen.iter().enumerate() {
         let mut routes = Vec::new();
 
-        for project in projects {
-            if let Some(route) = generate_project_route(project) {
-                routes.push(route);
-            }
-        }
+        let use_path_prefix = projects.len() > 1;
 
-        // Strip matchers when there's only one route (matches everything)
-        if routes.len() == 1 {
-            if let Some(route) = routes.first_mut() {
-                route.as_object_mut().map(|m| m.remove("match"));
+        for project in projects {
+            if let Some(route) = generate_project_route(project, use_path_prefix) {
+                routes.push(route);
             }
         }
 
         let server = json!({
             "listen": [listen],
-            "routes": routes
+            "routes": routes,
+            "automatic_https": {
+                "disable": true
+            }
         });
 
         servers.insert(format!("proxy_{}", i), server);
@@ -55,7 +53,10 @@ pub fn generate_caddy_config(config: &Config) -> Value {
             "proxy".to_string(),
             json!({
                 "listen": [":3000"],
-                "routes": []
+                "routes": [],
+                "automatic_https": {
+                    "disable": true
+                }
             }),
         );
     }
@@ -66,9 +67,6 @@ pub fn generate_caddy_config(config: &Config) -> Value {
         },
         "apps": {
             "http": {
-                "automatic_https": {
-                    "disable": true
-                },
                 "servers": servers
             }
         }
@@ -76,7 +74,7 @@ pub fn generate_caddy_config(config: &Config) -> Value {
 }
 
 /// Generate a Caddy route for a single project.
-fn generate_project_route(project: &Project) -> Option<Value> {
+fn generate_project_route(project: &Project, use_path_prefix: bool) -> Option<Value> {
     let env = project.environments.get(&project.current)?;
 
     let (dial, scheme) = parse_backend_addr(&env.addr);
@@ -85,13 +83,16 @@ fn generate_project_route(project: &Project) -> Option<Value> {
     // Build headers
     let mut headers = serde_json::Map::new();
     let mut set_headers = serde_json::Map::new();
-    set_headers.insert(
-        "X-Forwarded-Prefix".to_string(),
-        json!(["/{}", project.name]),
-    );
 
     if !host.is_empty() {
         set_headers.insert("Host".to_string(), json!([host]));
+    }
+
+    if use_path_prefix {
+        set_headers.insert(
+            "X-Forwarded-Prefix".to_string(),
+            json!([format!("/{}", project.name)]),
+        );
     }
 
     headers.insert("set".to_string(), Value::Object(set_headers));
@@ -107,20 +108,31 @@ fn generate_project_route(project: &Project) -> Option<Value> {
 
     // Add TLS transport for HTTPS backends
     if scheme == "https" {
+        let tls = if env.insecure_skip_verify {
+            json!({ "insecure_skip_verify": true })
+        } else {
+            json!({})
+        };
+
         handler["transport"] = json!({
             "protocol": "http",
-            "tls": { "insecure_skip_verify": true }
+            "tls": tls
         });
     }
 
-    Some(json!({
-        "match": [{
-            "host": ["localhost"],
-            "path": [format!("/{}/*", project.name)]
-        }],
+    let mut route = json!({
         "handle": [handler],
         "terminal": true
-    }))
+    });
+
+    if use_path_prefix {
+        route["match"] = json!([{
+            "host": ["localhost"],
+            "path": [format!("/{}/*", project.name)]
+        }]);
+    }
+
+    Some(route)
 }
 
 /// Parse a backend address into (dial, scheme).
@@ -165,6 +177,11 @@ mod tests {
             .as_array()
             .unwrap()
             .is_empty());
+        assert_eq!(
+            result["apps"]["http"]["servers"]["proxy"]["automatic_https"]["disable"],
+            true
+        );
+        assert!(result["apps"]["http"].get("automatic_https").is_none());
     }
 
     #[test]
@@ -175,6 +192,7 @@ mod tests {
             crate::model::Environment {
                 addr: "https://api.example.com".to_string(),
                 desc: "Production".to_string(),
+                insecure_skip_verify: true,
             },
         );
 
@@ -198,12 +216,119 @@ mod tests {
         let result = generate_caddy_config(&config);
         let servers = result["apps"]["http"]["servers"].as_object().unwrap();
         assert!(servers.contains_key("proxy_0"));
+        assert_eq!(servers["proxy_0"]["automatic_https"]["disable"], true);
 
         let routes = servers["proxy_0"]["routes"].as_array().unwrap();
         assert_eq!(routes.len(), 1);
 
-        // Single route should have no match (stripped)
+        // Single-project ports are transparent proxies for local dev server targets.
         assert!(routes[0].get("match").is_none());
+        assert!(routes[0]["handle"][0]["headers"]["request"]["set"]
+            .get("X-Forwarded-Prefix")
+            .is_none());
+    }
+
+    #[test]
+    fn test_generate_shared_port_uses_project_prefix() {
+        let mut first_envs = HashMap::new();
+        first_envs.insert(
+            "prod".to_string(),
+            crate::model::Environment {
+                addr: "https://api-one.example.com".to_string(),
+                desc: "Production".to_string(),
+                insecure_skip_verify: true,
+            },
+        );
+
+        let mut second_envs = HashMap::new();
+        second_envs.insert(
+            "prod".to_string(),
+            crate::model::Environment {
+                addr: "https://api-two.example.com".to_string(),
+                desc: "Production".to_string(),
+                insecure_skip_verify: true,
+            },
+        );
+
+        let mut projects = HashMap::new();
+        projects.insert(
+            "one".to_string(),
+            Project {
+                name: "one".to_string(),
+                listen: ":8080".to_string(),
+                desc: "One".to_string(),
+                environments: first_envs,
+                current: "prod".to_string(),
+            },
+        );
+        projects.insert(
+            "two".to_string(),
+            Project {
+                name: "two".to_string(),
+                listen: ":8080".to_string(),
+                desc: "Two".to_string(),
+                environments: second_envs,
+                current: "prod".to_string(),
+            },
+        );
+
+        let config = Config {
+            caddy_admin: "localhost:2019".to_string(),
+            projects,
+        };
+
+        let result = generate_caddy_config(&config);
+        let routes = result["apps"]["http"]["servers"]["proxy_0"]["routes"]
+            .as_array()
+            .unwrap();
+
+        assert_eq!(routes.len(), 2);
+        assert_eq!(routes[0]["match"][0]["path"], json!(["/one/*"]));
+        assert_eq!(
+            routes[0]["handle"][0]["headers"]["request"]["set"]["X-Forwarded-Prefix"],
+            json!(["/one"])
+        );
+        assert_eq!(routes[1]["match"][0]["path"], json!(["/two/*"]));
+        assert_eq!(
+            routes[1]["handle"][0]["headers"]["request"]["set"]["X-Forwarded-Prefix"],
+            json!(["/two"])
+        );
+    }
+
+    #[test]
+    fn test_https_backend_can_verify_certificates() {
+        let mut envs = HashMap::new();
+        envs.insert(
+            "prod".to_string(),
+            crate::model::Environment {
+                addr: "https://api.example.com".to_string(),
+                desc: "Production".to_string(),
+                insecure_skip_verify: false,
+            },
+        );
+
+        let mut projects = HashMap::new();
+        projects.insert(
+            "myapp".to_string(),
+            Project {
+                name: "myapp".to_string(),
+                listen: ":8080".to_string(),
+                desc: "My App".to_string(),
+                environments: envs,
+                current: "prod".to_string(),
+            },
+        );
+
+        let config = Config {
+            caddy_admin: "localhost:2019".to_string(),
+            projects,
+        };
+
+        let result = generate_caddy_config(&config);
+        let transport =
+            &result["apps"]["http"]["servers"]["proxy_0"]["routes"][0]["handle"][0]["transport"];
+
+        assert_eq!(transport["tls"], json!({}));
     }
 
     #[test]
@@ -221,5 +346,3 @@ mod tests {
         assert_eq!(scheme, "http");
     }
 }
-
-

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react"
-import type { FormEvent } from "react"
-import { Loader2, Save } from "lucide-react"
+import { useEffect, useState, type FormEvent } from "react"
+import { AlertCircle, Loader2, Save } from "lucide-react"
+import { caddyApi } from "@/api"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -10,9 +11,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { caddyApi } from "@/api"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface CaddySettingsDialogProps {
   open: boolean
@@ -67,36 +74,50 @@ export function CaddySettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px] bg-card border-border">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle className="font-display">Caddy 设置</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              配置 Caddy admin API 监听地址
-            </DialogDescription>
-          </DialogHeader>
+      <DialogContent className="sm:max-w-[440px]">
+        <DialogHeader>
+          <DialogTitle>Caddy 设置</DialogTitle>
+          <DialogDescription>配置 Caddy admin API 的监听地址。</DialogDescription>
+        </DialogHeader>
 
-          <div className="space-y-2 py-4">
-            <Label htmlFor="caddy-admin" className="text-xs font-mono">
-              管理地址
-            </Label>
-            <Input
-              id="caddy-admin"
-              value={admin}
-              onChange={(event) => setAdmin(event.target.value)}
-              placeholder="localhost:2019"
-              className="font-mono text-sm"
-              disabled={loading || saving}
-            />
-            {error && (
-              <p className="text-xs font-mono text-destructive">{error}</p>
-            )}
-          </div>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          {loading ? (
+            <div className="flex flex-col gap-3">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-9 w-full" />
+            </div>
+          ) : (
+            <FieldGroup>
+              <Field data-invalid={!!error || undefined}>
+                <FieldLabel htmlFor="caddy-admin">管理地址</FieldLabel>
+                <Input
+                  id="caddy-admin"
+                  value={admin}
+                  onChange={(event) => setAdmin(event.target.value)}
+                  placeholder="localhost:2019"
+                  className="font-mono"
+                  disabled={loading || saving}
+                  aria-invalid={!!error}
+                />
+                <FieldDescription>
+                  默认是 localhost:2019，修改后会用于读取和重载 Caddy 配置。
+                </FieldDescription>
+                {error && <FieldError>{error}</FieldError>}
+              </Field>
+            </FieldGroup>
+          )}
 
-          <DialogFooter className="gap-2 pt-2">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="size-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <DialogFooter className="gap-2">
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={saving}
             >
@@ -104,9 +125,9 @@ export function CaddySettingsDialog({
             </Button>
             <Button type="submit" disabled={loading || saving}>
               {saving ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="animate-spin" data-icon="inline-start" />
               ) : (
-                <Save className="mr-1.5 h-3.5 w-3.5" />
+                <Save data-icon="inline-start" />
               )}
               保存
             </Button>

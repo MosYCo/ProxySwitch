@@ -3,6 +3,7 @@
 export interface Environment {
   addr: string
   desc: string
+  insecure_skip_verify?: boolean
 }
 
 export interface Project {

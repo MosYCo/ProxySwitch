@@ -1,7 +1,13 @@
 import { Component, type ErrorInfo, type ReactNode } from "react"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 
 interface Props {
   children: ReactNode
@@ -32,11 +38,12 @@ export class ErrorBoundary extends Component<Props, State> {
           <Card className="max-w-md border-destructive/50">
             <CardHeader>
               <div className="flex items-center gap-2 text-destructive">
-                <AlertCircle className="h-5 w-5" />
+                <AlertCircle className="size-5" />
                 <CardTitle>发生错误</CardTitle>
               </div>
+              <CardDescription>界面遇到未处理异常。</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="flex flex-col gap-4">
               <p className="text-sm text-muted-foreground">
                 {this.state.error?.message || "未知错误"}
               </p>
@@ -46,7 +53,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   window.location.reload()
                 }}
               >
-                <RefreshCw className="mr-2 h-4 w-4" />
+                <RefreshCw data-icon="inline-start" />
                 刷新页面
               </Button>
             </CardContent>

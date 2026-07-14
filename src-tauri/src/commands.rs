@@ -1,8 +1,35 @@
+use crate::health::HealthChecker;
 use crate::model::*;
 use crate::validation;
 use crate::AppState;
 use std::collections::HashMap;
-use tauri::State;
+use tauri::{Emitter, State};
+
+async fn reload_caddy_config(state: &State<'_, AppState>, config: &Config, action: &str) {
+    match state
+        .caddy_client
+        .load_config_with_default_admin(config)
+        .await
+    {
+        Ok(()) => state.caddy_client.set_admin_url(&config.caddy_admin),
+        Err(e) => {
+            state.logger.warn(
+                "caddy",
+                &format!("{}时重新加载 Caddy 配置失败: {}", action, e),
+            );
+        }
+    }
+}
+
+async fn require_caddy_reload(state: &State<'_, AppState>, config: &Config) -> Result<(), String> {
+    state
+        .caddy_client
+        .load_config_with_default_admin(config)
+        .await
+        .map_err(|e| e.to_string())?;
+    state.caddy_client.set_admin_url(&config.caddy_admin);
+    Ok(())
+}
 
 // ============ Project Commands ============
 
@@ -32,6 +59,10 @@ pub async fn create_project(
     store
         .set_project(project.clone())
         .map_err(|e| e.to_string())?;
+    let config = store.get_config().clone();
+    drop(store);
+
+    reload_caddy_config(&state, &config, "创建项目").await;
 
     state
         .logger
@@ -61,14 +92,9 @@ pub async fn update_project(
         .set_project(updated.clone())
         .map_err(|e| e.to_string())?;
 
-    // Reload Caddy config
     let config = store.get_config().clone();
     drop(store);
-    if let Err(e) = state.caddy_client.load_config(&config).await {
-        state
-            .logger
-            .warn("caddy", &format!("重新加载 Caddy 配置失败: {}", e));
-    }
+    reload_caddy_config(&state, &config, "更新项目").await;
 
     state
         .logger
@@ -82,14 +108,9 @@ pub async fn delete_project(state: State<'_, AppState>, name: String) -> Result<
     let mut store = state.store.write().await;
     store.delete_project(&name).map_err(|e| e.to_string())?;
 
-    // Reload Caddy config
     let config = store.get_config().clone();
     drop(store);
-    if let Err(e) = state.caddy_client.load_config(&config).await {
-        state
-            .logger
-            .warn("caddy", &format!("重新加载 Caddy 配置失败: {}", e));
-    }
+    reload_caddy_config(&state, &config, "删除项目").await;
 
     state
         .logger
@@ -126,6 +147,10 @@ pub async fn create_environment(
     store
         .set_environment(&project, &name, env)
         .map_err(|e| e.to_string())?;
+    let config = store.get_config().clone();
+    drop(store);
+
+    reload_caddy_config(&state, &config, "添加环境").await;
 
     state
         .logger
@@ -148,14 +173,9 @@ pub async fn update_environment(
         .set_environment(&project, &name, env)
         .map_err(|e| e.to_string())?;
 
-    // Reload Caddy config
     let config = store.get_config().clone();
     drop(store);
-    if let Err(e) = state.caddy_client.load_config(&config).await {
-        state
-            .logger
-            .warn("caddy", &format!("重新加载 Caddy 配置失败: {}", e));
-    }
+    reload_caddy_config(&state, &config, "更新环境").await;
 
     state
         .logger
@@ -175,14 +195,9 @@ pub async fn delete_environment(
         .delete_environment(&project, &name)
         .map_err(|e| e.to_string())?;
 
-    // Reload Caddy config
     let config = store.get_config().clone();
     drop(store);
-    if let Err(e) = state.caddy_client.load_config(&config).await {
-        state
-            .logger
-            .warn("caddy", &format!("重新加载 Caddy 配置失败: {}", e));
-    }
+    reload_caddy_config(&state, &config, "删除环境").await;
 
     state
         .logger
@@ -204,20 +219,25 @@ pub async fn switch_environment(
         .set_current_environment(&project, &environment)
         .map_err(|e| e.to_string())?;
 
-    // Build and load config
     let config = store.get_config().clone();
     drop(store);
 
-    state
-        .caddy_client
-        .load_config(&config)
-        .await
-        .map_err(|e| e.to_string())?;
+    require_caddy_reload(&state, &config).await?;
 
     state.logger.info(
         "proxy",
         &format!("环境已切换: {} → {}", project, environment),
     );
+    state
+        .app_handle
+        .emit(
+            "environment.switched",
+            serde_json::json!({
+                "project": project,
+                "environment": environment,
+            }),
+        )
+        .ok();
 
     Ok(())
 }
@@ -228,13 +248,13 @@ pub async fn restart_proxy(state: State<'_, AppState>) -> Result<(), String> {
     let config = store.get_config().clone();
     drop(store);
 
-    state
-        .caddy_client
-        .load_config(&config)
-        .await
-        .map_err(|e| e.to_string())?;
+    require_caddy_reload(&state, &config).await?;
 
     state.logger.info("proxy", "代理已重启");
+    state
+        .app_handle
+        .emit("proxy.restarted", serde_json::json!({}))
+        .ok();
 
     Ok(())
 }
@@ -270,10 +290,13 @@ pub async fn get_health_status(
 
 #[tauri::command]
 pub async fn force_health_check(state: State<'_, AppState>) -> Result<(), String> {
-    let mut checker = state.health_checker.write().await;
-    checker
-        .force_check(&state.store, &state.logger, &state.app_handle)
-        .await;
+    HealthChecker::force_check_shared(
+        state.health_checker.clone(),
+        &state.store,
+        &state.logger,
+        &state.app_handle,
+    )
+    .await;
     Ok(())
 }
 
@@ -357,15 +380,10 @@ pub async fn update_caddy_settings(
         store.get_config().clone()
     };
 
-    let apply_result = match state.caddy_client.load_config(&config).await {
-        Ok(()) => Ok(()),
-        Err(_) => {
-            state
-                .caddy_client
-                .load_config_via("localhost:2019", &config)
-                .await
-        }
-    };
+    let apply_result = state
+        .caddy_client
+        .load_config_with_default_admin(&config)
+        .await;
 
     match apply_result {
         Ok(()) => {
@@ -391,6 +409,7 @@ pub async fn start_caddy(state: State<'_, AppState>) -> Result<(), String> {
     mgr.start(state.logger.clone())
         .await
         .map_err(|e| e.to_string())?;
+    drop(mgr);
 
     state.logger.info("caddy", "Caddy 已启动");
 
@@ -401,7 +420,7 @@ pub async fn start_caddy(state: State<'_, AppState>) -> Result<(), String> {
     drop(store);
     if let Err(e) = state
         .caddy_client
-        .load_config_via("localhost:2019", &config)
+        .load_config_with_default_admin(&config)
         .await
     {
         state
@@ -418,6 +437,7 @@ pub async fn start_caddy(state: State<'_, AppState>) -> Result<(), String> {
 pub async fn stop_caddy(state: State<'_, AppState>) -> Result<(), String> {
     let mut mgr = state.caddy_manager.write().await;
     mgr.stop().await.map_err(|e| e.to_string())?;
+    drop(mgr);
 
     state.logger.info("caddy", "Caddy 已停止");
 
@@ -430,6 +450,7 @@ pub async fn restart_caddy(state: State<'_, AppState>) -> Result<(), String> {
     mgr.restart(state.logger.clone())
         .await
         .map_err(|e| e.to_string())?;
+    drop(mgr);
 
     state.logger.info("caddy", "Caddy 已重启");
 
@@ -440,7 +461,7 @@ pub async fn restart_caddy(state: State<'_, AppState>) -> Result<(), String> {
     drop(store);
     if let Err(e) = state
         .caddy_client
-        .load_config_via("localhost:2019", &config)
+        .load_config_with_default_admin(&config)
         .await
     {
         state
@@ -478,4 +499,28 @@ fn normalize_caddy_admin_listen(input: &str) -> Result<String, String> {
     }
 
     Ok(value.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_caddy_admin_listen;
+
+    #[test]
+    fn normalizes_http_admin_listen_values() {
+        assert_eq!(
+            normalize_caddy_admin_listen("http://localhost:2019").unwrap(),
+            "localhost:2019"
+        );
+        assert_eq!(
+            normalize_caddy_admin_listen("https://127.0.0.1:2020").unwrap(),
+            "127.0.0.1:2020"
+        );
+        assert_eq!(normalize_caddy_admin_listen(":2019").unwrap(), ":2019");
+    }
+
+    #[test]
+    fn rejects_admin_listen_paths() {
+        assert!(normalize_caddy_admin_listen("http://localhost:2019/config").is_err());
+        assert!(normalize_caddy_admin_listen("localhost").is_err());
+    }
 }

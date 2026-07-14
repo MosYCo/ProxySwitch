@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -12,6 +13,10 @@ pub struct Config {
 
 fn default_caddy_admin() -> String {
     "localhost:2019".to_string()
+}
+
+fn default_insecure_skip_verify() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +36,8 @@ pub struct Environment {
     pub addr: String,
     #[serde(default)]
     pub desc: String,
+    #[serde(default = "default_insecure_skip_verify")]
+    pub insecure_skip_verify: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,6 +75,8 @@ pub struct LogEntry {
     pub level: LogLevel,
     pub category: String,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,6 +1,6 @@
 [package]
 name = "caddy-proxy-tools"
-version = "2.0.0"
+version = "2.0.1"
 edition = "2021"
 description = "Caddy Proxy Tools - Desktop client for managing Caddy reverse proxy"
 

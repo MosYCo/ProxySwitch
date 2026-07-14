@@ -1,5 +1,7 @@
 import { Activity, Layers, Box, Wifi } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
 
 interface StatsBarProps {
   projectCount: number
@@ -9,80 +11,67 @@ interface StatsBarProps {
 }
 
 export function StatsBar({ projectCount, envCount, healthyCount, ports }: StatsBarProps) {
+  const items = [
+    {
+      label: "项目",
+      value: projectCount,
+      icon: Box,
+      tone: "primary",
+    },
+    {
+      label: "环境",
+      value: envCount,
+      icon: Layers,
+      tone: "info",
+    },
+    {
+      label: "健康",
+      value: `${healthyCount}/${envCount}`,
+      icon: Activity,
+      tone: healthyCount === envCount && envCount > 0 ? "success" : "warning",
+    },
+  ]
+
   return (
-    <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-      <Card className="border-border/30">
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-mono text-muted-foreground tracking-widest">
-                项目数
-              </p>
-              <p className="text-2xl font-display font-bold text-foreground mt-1">
-                {projectCount}
-              </p>
+    <Card>
+      <CardContent className="grid gap-3 p-3 md:grid-cols-[repeat(3,minmax(0,1fr))_minmax(220px,1.4fr)]">
+        {items.map((item) => {
+          const Icon = item.icon
+          return (
+            <div key={item.label} className="flex items-center gap-3 rounded-sm bg-muted/40 px-3 py-2">
+              <div
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-sm border",
+                  item.tone === "primary" && "border-primary/25 bg-primary/10 text-primary",
+                  item.tone === "info" && "border-info/25 bg-info/10 text-info",
+                  item.tone === "success" && "border-success/25 bg-success/10 text-success",
+                  item.tone === "warning" && "border-warning/25 bg-warning/10 text-warning"
+                )}
+              >
+                <Icon className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">{item.label}</p>
+                <p className="text-lg font-semibold leading-tight text-foreground">
+                  {item.value}
+                </p>
+              </div>
             </div>
-            <div className="w-8 h-8 bg-primary/10 rounded-sm flex items-center justify-center">
-              <Box className="h-4 w-4 text-primary" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          )
+        })}
 
-      <Card className="border-border/30">
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-mono text-muted-foreground tracking-widest">
-                环境数
-              </p>
-              <p className="text-2xl font-display font-bold text-foreground mt-1">
-                {envCount}
-              </p>
-            </div>
-            <div className="w-8 h-8 bg-cyan-500/10 rounded-sm flex items-center justify-center">
-              <Layers className="h-4 w-4 text-cyan-500" />
-            </div>
+        <div className="flex min-w-0 items-center gap-3 rounded-sm bg-muted/40 px-3 py-2">
+          <div className="flex size-8 items-center justify-center rounded-sm border border-warning/25 bg-warning/10 text-warning">
+            <Wifi className="size-4" />
           </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/30">
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-mono text-muted-foreground tracking-widest">
-                健康数
-              </p>
-              <p className="text-2xl font-display font-bold mt-1">
-                <span className="text-emerald-500">{healthyCount}</span>
-                <span className="text-muted-foreground text-sm">/{envCount}</span>
-              </p>
-            </div>
-            <div className="w-8 h-8 bg-emerald-500/10 rounded-sm flex items-center justify-center">
-              <Activity className="h-4 w-4 text-emerald-500" />
-            </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">监听端口</p>
+            <Badge variant="outline" className="mt-1 max-w-full truncate font-mono">
+              {ports || "---"}
+            </Badge>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/30">
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-mono text-muted-foreground tracking-widest">
-                端口
-              </p>
-              <p className="text-sm font-mono font-bold text-foreground mt-2 truncate">
-                {ports || "---"}
-              </p>
-            </div>
-            <div className="w-8 h-8 bg-amber-500/10 rounded-sm flex items-center justify-center">
-              <Wifi className="h-4 w-4 text-amber-500" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

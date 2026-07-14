@@ -42,21 +42,24 @@ export function ProjectToolbar({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 text-xs font-mono"
+              className="h-8"
               onClick={onEditProject}
             >
-              <Pencil className="mr-1.5 h-3 w-3" />
+              <Pencil data-icon="inline-start" />
               编辑项目
             </Button>
           )}
           <Button
             variant="outline"
             size="sm"
-            className="h-8 text-xs font-mono"
+            className="h-8"
             onClick={onRestartProxy}
             disabled={restartingProxy}
           >
-            <RefreshCw className={restartingProxy ? "mr-1.5 h-3 w-3 animate-spin" : "mr-1.5 h-3 w-3"} />
+            <RefreshCw
+              className={restartingProxy ? "animate-spin" : undefined}
+              data-icon="inline-start"
+            />
             {restartingProxy ? "重启中" : "重启代理"}
           </Button>
         </div>
@@ -66,7 +69,7 @@ export function ProjectToolbar({
       {currentProject && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
-            <h2 className="min-w-0 truncate text-sm font-display font-semibold tracking-wide">
+            <h2 className="min-w-0 truncate text-sm font-semibold">
               {currentProject.desc || currentProject.name}
             </h2>
             <Badge variant="outline" className="flex-shrink-0 text-[10px] font-mono">
@@ -76,10 +79,10 @@ export function ProjectToolbar({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 text-xs font-mono"
+            className="h-8"
             onClick={onAddEnv}
           >
-            <Plus className="mr-1 h-3 w-3" />
+            <Plus data-icon="inline-start" />
             添加环境
           </Button>
         </div>

@@ -102,6 +102,7 @@ fn main() {
             // Initialize logger
             let logger =
                 Logger::new(log_dir.to_str().unwrap()).expect("failed to initialize logger");
+            logger.set_app_handle(app.handle().clone());
 
             // Create app state
             let state = AppState {
@@ -193,11 +194,13 @@ fn main() {
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                 let state = app_handle.state::<AppState>();
-                let store = state.store.read().await;
-                let config = store.get_config();
+                let config = {
+                    let store = state.store.read().await;
+                    store.get_config().clone()
+                };
                 if let Err(e) = state
                     .caddy_client
-                    .load_config_via("localhost:2019", &config)
+                    .load_config_with_default_admin(&config)
                     .await
                 {
                     state
@@ -215,14 +218,13 @@ fn main() {
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let state = app_handle.state::<AppState>();
-                let mut checker = state.health_checker.write().await;
-                checker
-                    .start(
-                        state.store.clone(),
-                        state.logger.clone(),
-                        app_handle.clone(),
-                    )
-                    .await;
+                HealthChecker::run(
+                    state.health_checker.clone(),
+                    state.store.clone(),
+                    state.logger.clone(),
+                    app_handle.clone(),
+                )
+                .await;
             });
 
             Ok(())

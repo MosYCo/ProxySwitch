@@ -1,11 +1,14 @@
 use crate::model::{LogEntry, LogLevel};
 use chrono::Utc;
+use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use tauri::{AppHandle, Emitter};
 
 pub struct Logger {
     entries: Mutex<Vec<LogEntry>>,
     log_dir: PathBuf,
+    app_handle: Mutex<Option<AppHandle>>,
 }
 
 impl Logger {
@@ -16,15 +19,32 @@ impl Logger {
         Ok(Self {
             entries: Mutex::new(Vec::new()),
             log_dir,
+            app_handle: Mutex::new(None),
         })
     }
 
+    pub fn set_app_handle(&self, app_handle: AppHandle) {
+        let mut current = self.app_handle.lock().unwrap();
+        *current = Some(app_handle);
+    }
+
     pub fn log(&self, level: LogLevel, category: &str, message: &str) {
+        self.log_with_data(level, category, message, None);
+    }
+
+    pub fn log_with_data(
+        &self,
+        level: LogLevel,
+        category: &str,
+        message: &str,
+        data: Option<Value>,
+    ) {
         let entry = LogEntry {
             timestamp: Utc::now(),
             level,
             category: category.to_string(),
             message: message.to_string(),
+            data,
         };
 
         // Write to file
@@ -32,12 +52,17 @@ impl Logger {
 
         // Store in memory
         let mut entries = self.entries.lock().unwrap();
-        entries.push(entry);
+        entries.push(entry.clone());
 
         // Keep only last 1000 entries in memory
         let overflow = entries.len().saturating_sub(1000);
         if overflow > 0 {
             entries.drain(0..overflow);
+        }
+        drop(entries);
+
+        if let Some(app) = self.app_handle.lock().unwrap().clone() {
+            app.emit("log.created", &entry).ok();
         }
     }
 

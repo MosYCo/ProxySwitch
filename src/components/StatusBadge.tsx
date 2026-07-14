@@ -39,13 +39,7 @@ export function StatusBadge({ status, showIcon = true, size = "default" }: Statu
   return (
     <Badge variant={variant} className={cn(size === "sm" && "text-[10px] px-1.5 py-0")}>
       {showIcon && (
-        <Icon
-          className={cn(
-            "mr-1",
-            size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3",
-            status === "loading" && "animate-spin"
-          )}
-        />
+        <Icon className={cn(status === "loading" && "animate-spin")} />
       )}
       {label}
     </Badge>
@@ -62,15 +56,12 @@ export function ConnectionBadge({ isConnected }: ConnectionBadgeProps) {
       <div className="relative">
         <div
           className={cn(
-            "w-2 h-2 rounded-full transition-colors",
-            isConnected ? "bg-emerald-500" : "bg-red-500"
+            "size-2 rounded-full transition-colors",
+            isConnected ? "bg-success" : "bg-destructive"
           )}
         />
-        {isConnected && (
-          <div className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-500 animate-ping opacity-30" />
-        )}
       </div>
-      <span className="text-xs font-mono text-muted-foreground">
+      <span className="text-xs text-muted-foreground">
         {isConnected ? "已连接" : "未连接"}
       </span>
     </div>

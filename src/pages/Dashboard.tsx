@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
-import { Activity } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
+import { Activity, Loader2 } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
 import { EnvironmentCard } from "@/components/EnvironmentCard"
 import { LogViewer } from "@/components/LogViewer"
 import { Header } from "@/components/Header"
@@ -79,7 +80,7 @@ export function Dashboard() {
     const unsubRestart = on("proxy.restarted", () => {
       refresh()
     })
-    const unsubHealth = on("health.check", () => {
+    const unsubHealth = on("health.changed", () => {
       refreshHealth()
     })
 
@@ -223,14 +224,13 @@ export function Dashboard() {
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background bg-grid">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <div className="w-12 h-12 border-2 border-primary/30 rounded-full" />
-            <div className="absolute inset-0 w-12 h-12 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="flex w-full max-w-sm flex-col items-center gap-4 px-6">
+          <Loader2 className="size-8 animate-spin text-primary" />
+          <div className="flex w-full flex-col gap-2">
+            <Skeleton className="h-3 w-2/3 self-center" />
+            <Skeleton className="h-3 w-full" />
           </div>
-          <p className="text-xs font-mono text-muted-foreground tracking-widest">
-            初始化中...
-          </p>
+          <p className="text-xs text-muted-foreground">正在加载代理配置</p>
         </div>
       </div>
     )
@@ -252,17 +252,13 @@ export function Dashboard() {
         caddyAction={caddyAction}
       />
 
-      <main className="container px-3 py-4 space-y-4 sm:px-4">
-        {/* 错误信息 */}
+      <main className="container flex flex-col gap-4 px-3 py-4 sm:px-4">
         {error && (
-          <Card className="border-destructive/30 bg-destructive/5">
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-2 text-destructive text-xs font-mono">
-                <Activity className="h-3.5 w-3.5" />
-                <p>{error}</p>
-              </div>
-            </CardContent>
-          </Card>
+          <Alert variant="destructive">
+            <Activity className="size-4" />
+            <AlertTitle>代理状态异常</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         {/* 统计卡片 */}
