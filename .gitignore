@@ -4,6 +4,7 @@ node_modules/
 
 # Build outputs
 dist/
+artifacts/
 src-tauri/target/
 src-tauri/gen/
 
@@ -24,3 +25,19 @@ config.json
 
 # Tauri sidecar binaries (downloaded via scripts)
 src-tauri/binaries/
+
+# Local agent state and credentials
+.agents/
+.codex/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+!tests/fixtures/health-test.p12
+*.keystore
+*.jks
+*.local.json
+*.tsbuildinfo

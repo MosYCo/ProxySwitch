@@ -1,17 +1,24 @@
 {
   "name": "caddy-proxy-tools",
   "private": true,
-  "version": "2.0.1",
+  "license": "MIT",
+  "version": "2.1.2",
   "type": "module",
-  "packageManager": "pnpm@11.9.0",
+  "packageManager": "pnpm@11.10.0",
+  "engines": { "node": ">=24.18.0 <25", "pnpm": "11.10.0" },
   "scripts": {
     "download-caddy": "node scripts/download-caddy.mjs",
+    "icons:generate": "node scripts/generate-icons.mjs",
     "dev": "vite",
     "build": "tsc && vite build",
+    "test": "node --test tests/*.test.mjs",
     "preview": "vite preview",
+    "release:notes": "node scripts/release-notes.mjs",
+    "check:public": "node scripts/check-public-content.mjs --history",
+    "licenses:generate": "node scripts/dependency-licenses.mjs",
     "tauri": "tauri",
     "tauri:dev": "pnpm download-caddy && pnpm tauri dev",
-    "tauri:build": "pnpm download-caddy && pnpm tauri build"
+    "tauri:build": "node scripts/package-release.mjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.0.5",

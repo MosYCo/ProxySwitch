@@ -1,13 +1,13 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
   "productName": "Caddy Proxy Tools",
-  "version": "2.0.1",
+  "version": "2.1.2",
   "identifier": "com.caddy-proxy-tools.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:13000",
     "beforeDevCommand": "pnpm download-caddy && pnpm dev",
-    "beforeBuildCommand": "pnpm download-caddy && pnpm build"
+    "beforeBuildCommand": "pnpm release:notes && pnpm download-caddy && pnpm licenses:generate && pnpm build"
   },
   "app": {
     "windows": [
@@ -18,13 +18,15 @@
         "minWidth": 900,
         "minHeight": 600,
         "center": true,
+        "visible": false,
+        "generalAutofillEnabled": false,
         "decorations": true,
         "resizable": true
       }
     ],
     "trayIcon": {
-      "iconPath": "icons/tray-template.png",
-      "iconAsTemplate": true,
+      "iconPath": "icons/tray-icon.png",
+      "iconAsTemplate": false,
       "tooltip": "Caddy Proxy Tools"
     },
     "security": {
@@ -42,6 +44,12 @@
       "icons/icon.ico"
     ],
     "externalBin": ["binaries/caddy"],
-    "resources": []
+    "resources": {
+      "../CHANGELOG.md": "CHANGELOG.md",
+      "../docs/releases/RELEASE_NOTES.md": "RELEASE_NOTES.md",
+      "../LICENSE": "LICENSE",
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+      "../licenses/": "licenses/"
+    }
   }
 }

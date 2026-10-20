@@ -1,0 +1,34 @@
+{
+  "version": "2.11.4",
+  "checksums_url": "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_checksums.txt",
+  "targets": {
+    "linux": {
+      "archive": "caddy_2.11.4_linux_amd64.tar.gz",
+      "binary": "caddy-x86_64-unknown-linux-gnu",
+      "archive_sha256": "527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9",
+      "archive_sha512": "8220d1f013b6f27510247b2360c9e0ca9f018feebd82515f07635318b34ff9777ccc8fd0b6e6f2486ce3a33fe389fbb7db12d05baa474f4587509fb4f5ebf1c9",
+      "binary_sha256": "b7105518e3ed1c0761f232e44fc09345535533c9cb0abf0e12809416c7ac64d9"
+    },
+    "macos-arm": {
+      "archive": "caddy_2.11.4_mac_arm64.tar.gz",
+      "binary": "caddy-aarch64-apple-darwin",
+      "archive_sha256": "9efb0af2d6cf09cfb5053c0e51721b9b3d4956d346234f39368d943d25a3c9a7",
+      "archive_sha512": "3190ae0df98b59ab4b6021556fa35adc3c526a4f3e138776b0eaec8a037cc26121cbbb1ad53453f565551b47d37d5ba4755e2c2c3652256737fe2ce9e53c8ec0",
+      "binary_sha256": "e9ebf99dfd4b72259debe1830c83e86c63fb89a88e28b4e7c5e78a35fa76c92d"
+    },
+    "macos-intel": {
+      "archive": "caddy_2.11.4_mac_amd64.tar.gz",
+      "binary": "caddy-x86_64-apple-darwin",
+      "archive_sha256": "34bc9e5cceee8d67844ef51da624f5b79e8d070f27236e050c3f0066a2dba534",
+      "archive_sha512": "e04eb10f9ce7e2e079bc9bff1bd5d3a3164888d1edbb1a49e5d15be4eab691b57e89ed36bb29c65ba43f1ba8d9279e0967b1003991c13fe4cb78384c3caf25de",
+      "binary_sha256": "4900f5717695c2685e79a51fe4da87d897fd2feb4b19fd8c0c8ac425355e3cc9"
+    },
+    "windows": {
+      "archive": "caddy_2.11.4_windows_amd64.zip",
+      "binary": "caddy-x86_64-pc-windows-msvc.exe",
+      "archive_sha256": "1708333f79e274c7697285afe6d592ab39314e0b131e9ec6bea08ad27df62ebf",
+      "archive_sha512": "cd5ccfd86a4b40732cf715890d0dca5bf3f63adefec5a7914de85adf240c60ce7e5d2791631b88ef9758e46b23bb1730e020b9c5d696889740b284ffd4788e35",
+      "binary_sha256": "5cb9ab71e5756ce72840b8234177a2f40c8b4ab47a806b8e841e2b784e9df62b"
+    }
+  }
+}

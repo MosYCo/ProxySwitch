@@ -2,10 +2,16 @@
 
 mod caddy;
 mod commands;
+mod configuration;
+mod events;
 mod health;
 mod logger;
 mod model;
+mod preferences;
+mod settings;
 mod store;
+#[cfg(test)]
+mod test_support;
 mod validation;
 
 use std::sync::Arc;
@@ -14,7 +20,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager,
 };
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::caddy::{Client as CaddyClient, Manager as CaddyManager};
 use crate::health::HealthChecker;
@@ -28,6 +34,7 @@ pub struct AppState {
     pub caddy_client: Arc<CaddyClient>,
     pub health_checker: Arc<RwLock<HealthChecker>>,
     pub logger: Arc<Logger>,
+    pub config_operation: Mutex<()>,
 }
 
 const TRAY_SHOW_ID: &str = "tray_show";
@@ -45,6 +52,7 @@ fn quit_app(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         {
             let state = app.state::<AppState>();
+            let _operation = state.config_operation.lock().await;
             let mut mgr = state.caddy_manager.write().await;
             if let Err(e) = mgr.stop().await {
                 state
@@ -102,7 +110,23 @@ fn main() {
             // Initialize logger
             let logger =
                 Logger::new(log_dir.to_str().unwrap()).expect("failed to initialize logger");
+            let startup = store.get_config().settings.startup.clone();
+            logger.configure(store.get_config().settings.logs.clone());
             logger.set_app_handle(app.handle().clone());
+            logger.info(
+                "system",
+                &format!(
+                    "软件已启动 · v{} · 已载入 {} 个项目，其中 {} 个已启用",
+                    env!("CARGO_PKG_VERSION"),
+                    store.get_config().projects.len(),
+                    store
+                        .get_config()
+                        .projects
+                        .values()
+                        .filter(|project| project.enabled)
+                        .count()
+                ),
+            );
 
             // Create app state
             let state = AppState {
@@ -112,6 +136,7 @@ fn main() {
                 caddy_client: Arc::new(caddy_client),
                 health_checker: Arc::new(RwLock::new(health_checker)),
                 logger: Arc::new(logger),
+                config_operation: Mutex::new(()),
             };
 
             app.manage(state);
@@ -177,40 +202,44 @@ fn main() {
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let state = app_handle.state::<AppState>();
-                let mut mgr = state.caddy_manager.write().await;
-                if let Err(e) = mgr.start(state.logger.clone()).await {
-                    state
-                        .logger
-                        .warn("caddy", &format!("启动 Caddy 失败: {}", e));
-                    tracing::warn!("Failed to start Caddy: {}", e);
-                } else {
-                    state.logger.info("caddy", "Caddy 已启动");
-                    tracing::info!("Caddy started");
+                let start_caddy = state
+                    .store
+                    .read()
+                    .await
+                    .get_config()
+                    .settings
+                    .startup
+                    .start_caddy;
+                if start_caddy {
+                    if let Err(e) = commands::start_managed_caddy(&state).await {
+                        state
+                            .logger
+                            .error("system", &format!("自动启动 Caddy 失败: {}", e));
+                        tracing::warn!("Failed to start Caddy: {}", e);
+                    }
                 }
             });
 
-            // Load initial Caddy config
-            let app_handle = app.handle().clone();
+            if startup.start_hidden {
+                if let Some(window) = app.get_webview_window("main") {
+                    window.hide().ok();
+                }
+            } else if let Some(window) = app.get_webview_window("main") {
+                window.show().ok();
+            }
+            let recovery_app = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                let state = app_handle.state::<AppState>();
-                let config = {
-                    let store = state.store.read().await;
-                    store.get_config().clone()
-                };
-                if let Err(e) = state
-                    .caddy_client
-                    .load_config_with_default_admin(&config)
-                    .await
-                {
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    let state = recovery_app.state::<AppState>();
+                    let _operation = state.config_operation.lock().await;
+                    let config = state.store.read().await.get_config().clone();
                     state
-                        .logger
-                        .warn("caddy", &format!("加载初始 Caddy 配置失败: {}", e));
-                    tracing::warn!("Failed to load initial Caddy config: {}", e);
-                } else {
-                    state.caddy_client.set_admin_url(&config.caddy_admin);
-                    state.logger.info("system", "初始代理配置已加载");
-                    tracing::info!("Initial Caddy config loaded");
+                        .caddy_manager
+                        .write()
+                        .await
+                        .recover_if_needed(state.logger.clone(), &config)
+                        .await;
                 }
             });
 
@@ -234,6 +263,7 @@ fn main() {
             commands::get_project,
             commands::create_project,
             commands::update_project,
+            commands::set_project_enabled,
             commands::delete_project,
             commands::list_environments,
             commands::create_environment,
@@ -254,12 +284,36 @@ fn main() {
             commands::start_caddy,
             commands::stop_caddy,
             commands::restart_caddy,
+            settings::get_app_settings,
+            settings::update_app_settings,
+            settings::preview_import,
+            settings::import_projects,
+            settings::export_projects,
+            settings::list_backups,
+            settings::create_backup,
+            settings::restore_backup,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // Minimize to tray instead of closing
-                window.hide().ok();
                 api.prevent_close();
+                let app = window.app_handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let action = app
+                        .state::<AppState>()
+                        .store
+                        .read()
+                        .await
+                        .get_config()
+                        .settings
+                        .startup
+                        .close_action
+                        .clone();
+                    if action == "quit" {
+                        quit_app(app);
+                    } else if let Some(window) = app.get_webview_window("main") {
+                        window.hide().ok();
+                    }
+                });
             }
         })
         .run(tauri::generate_context!())

@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+  windows:
+    needs: checks
+    runs-on: windows-latest
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - run: pnpm install --frozen-lockfile
+      - run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Verify release tag and changelog
+        id: metadata
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node scripts/release-notes.mjs --tag "$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --input-type=module -e 'import {readFileSync,appendFileSync} from "node:fs"; appendFileSync(process.env.GITHUB_OUTPUT,"version="+JSON.parse(readFileSync("package.json","utf8")).version+"\n");'
+      - run: pnpm tauri:build --ci
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-release
+          path: artifacts/${{ steps.metadata.outputs.version }}/
+          if-no-files-found: error
+  publish:
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: windows-release
+          path: release-assets
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          body_path: release-assets/RELEASE_NOTES_${{ needs.windows.outputs.version }}.md
+          files: |
+            release-assets/**/*.exe
+            release-assets/**/*.msi
+            release-assets/**/RELEASE_NOTES_*.md
+            release-assets/**/CHANGELOG.md
+            release-assets/**/SHA256SUMS.txt
+            release-assets/**/LICENSE
+            release-assets/**/THIRD_PARTY_NOTICES.md
+            release-assets/**/*.zip
+          fail_on_unmatched_files: true

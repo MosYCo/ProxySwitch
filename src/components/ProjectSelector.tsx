@@ -26,24 +26,17 @@ export function ProjectSelector({
   return (
     <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
       <Select value={selected || ""} onValueChange={onSelect}>
-        <SelectTrigger className="h-9 min-w-0 flex-1 sm:w-[280px]">
+        <SelectTrigger className="h-9 min-w-0 flex-1 sm:w-[280px]" aria-label="选择项目">
           <div className="flex min-w-0 items-center gap-2">
             <Box className="size-4 flex-shrink-0 text-primary" />
-            <SelectValue placeholder="选择项目" />
+            <SelectValue placeholder="选择项目" className="truncate" />
           </div>
         </SelectTrigger>
         <SelectContent>
           <SelectGroup>
             {projects.map((project) => (
-              <SelectItem key={project.name} value={project.name}>
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <span className="truncate text-sm font-semibold">
-                    {project.desc || project.name}
-                  </span>
-                  <span className="truncate font-mono text-[10px] text-muted-foreground">
-                    {project.listen} / {Object.keys(project.environments || {}).length} 个环境
-                  </span>
-                </div>
+              <SelectItem key={project.name} value={project.name} description={`${project.listen} / ${Object.keys(project.environments || {}).length} 个环境`}>
+                {project.desc || project.name}
               </SelectItem>
             ))}
           </SelectGroup>

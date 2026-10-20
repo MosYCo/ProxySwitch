@@ -1,6 +1,8 @@
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useRef, useState, type FormEvent } from "react"
 import { AlertCircle, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
-import type { Project } from "@/api"
+import type { Project, ProxyOptions } from "@/api"
+import { HealthEditor, ProxyEditor, type HealthEditorHandle, type ProxyEditorHandle } from "@/components/settings/ProxyEditor"
+import { SettingField } from "@/components/settings/SettingsFields"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
@@ -15,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Disclosure } from "@/components/ui/disclosure"
 import {
   Dialog,
   DialogContent,
@@ -25,6 +28,7 @@ import {
 } from "@/components/ui/dialog"
 import {
   Field,
+  FieldContent,
   FieldDescription,
   FieldError,
   FieldGroup,
@@ -32,11 +36,16 @@ import {
   FieldTitle,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
+import { Checkbox } from "@/components/ui/checkbox"
+import { hasProxyRoute, projectEntryUrl } from "@/lib/projectRouting"
 
 interface ProjectDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   project?: Project | null
+  projects: Project[]
+  proxyDefaults?: ProxyOptions
   onSave: (
     project: Omit<Project, "current"> & { current?: string }
   ) => Promise<boolean> | boolean
@@ -47,15 +56,26 @@ export function ProjectDialog({
   open,
   onOpenChange,
   project,
+  projects,
+  proxyDefaults,
   onSave,
   onDelete,
 }: ProjectDialogProps) {
   const [name, setName] = useState("")
   const [listen, setListen] = useState("")
   const [desc, setDesc] = useState("")
+  const [enabled, setEnabled] = useState(true)
+  const [pathPrefix, setPathPrefix] = useState(false)
+  const [stripPrefix, setStripPrefix] = useState(true)
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [routePrefix, setRoutePrefix] = useState("")
+  const [rewritePrefix, setRewritePrefix] = useState("")
+  const proxyEditor = useRef<ProxyEditorHandle>(null)
+  const healthEditor = useRef<HealthEditorHandle>(null)
+  const errorBox = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (error) errorBox.current?.scrollIntoView({ block: "nearest" }) }, [error])
 
   const isEditing = !!project
   const nameInvalid = error.includes("项目名称")
@@ -66,12 +86,20 @@ export function ProjectDialog({
       setName(project.name)
       setListen(project.listen)
       setDesc(project.desc || "")
+      setEnabled(project.enabled)
+      setPathPrefix(project.path_prefix ?? false)
+      setStripPrefix(project.strip_prefix ?? false)
     } else {
       setName("")
       setListen("")
       setDesc("")
+      setEnabled(true)
+      setPathPrefix(false)
+      setStripPrefix(true)
     }
     setError("")
+    setRoutePrefix(project?.route_prefix || "")
+    setRewritePrefix(project?.rewrite_prefix || "")
   }, [project, open])
 
   const handleSubmit = async (event: FormEvent) => {
@@ -86,6 +114,24 @@ export function ProjectDialog({
       setError("请输入监听端口")
       return
     }
+    if (/[/\s?#]/.test(name.trim()) || (pathPrefix && /[*{}]/.test(name.trim()))) {
+      setError("项目名称不能包含空白、/、?、#，启用前缀时也不能包含 *、{、}")
+      return
+    }
+    if (!isEditing && projects.some((p) => p.name === name.trim())) {
+      setError("项目名称已存在，请使用其他名称")
+      return
+    }
+    const port = Number(listen.trim().replace(/^:/, ""))
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      setError("监听端口必须是 1–65535 的整数")
+      return
+    }
+    const shared = projects.filter((p) => p.name !== project?.name && hasProxyRoute(p) && Number(p.listen.replace(/^:/, "")) === port)
+    if (project && hasProxyRoute(project) && shared.length && (!(pathPrefix || routePrefix.trim()) || shared.some((p) => !p.path_prefix && !p.route_prefix))) {
+      setError("监听端口已被使用，请先为该端口所有启用项目设置路径前缀，或选择其他端口")
+      return
+    }
 
     let formattedListen = listen.trim()
     if (!formattedListen.startsWith(":")) {
@@ -98,10 +144,19 @@ export function ProjectDialog({
         name: name.trim(),
         listen: formattedListen,
         desc: desc.trim(),
+        enabled,
+        path_prefix: pathPrefix,
+        strip_prefix: pathPrefix && stripPrefix,
+        route_prefix: routePrefix.trim() || null,
+        rewrite_prefix: rewritePrefix.trim() || null,
+        proxy: proxyEditor.current?.read() || {},
+        health: healthEditor.current?.read() || {},
         environments: project?.environments || {},
         current: project?.current || "",
       })
       if (saved) onOpenChange(false)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error))
     } finally {
       setSaving(false)
     }
@@ -121,7 +176,7 @@ export function ProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px]">
+      <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>{isEditing ? "编辑项目" : "添加项目"}</DialogTitle>
           <DialogDescription>
@@ -129,9 +184,9 @@ export function ProjectDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        <form autoComplete="off" noValidate onSubmit={handleSubmit} className="flex flex-col gap-5">
           {error && (
-            <Alert variant="destructive">
+            <Alert ref={errorBox} variant="destructive">
               <AlertCircle className="size-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
@@ -179,6 +234,35 @@ export function ProjectDialog({
               />
               <FieldDescription>可选，用于在界面上显示。</FieldDescription>
             </Field>
+
+            {!isEditing && <Field orientation="horizontal">
+              <FieldContent>
+                <FieldTitle>创建后启用项目</FieldTitle>
+                <FieldDescription>关闭后仅保存配置，可在项目配置中单独启用。启停状态会在重启后保留。</FieldDescription>
+              </FieldContent>
+              <Switch checked={enabled} onCheckedChange={setEnabled} disabled={saving || deleting} aria-label="创建后启用项目" />
+            </Field>}
+
+            <Field orientation="horizontal">
+              <FieldContent>
+                <FieldTitle>使用项目路径前缀</FieldTitle>
+                <FieldDescription>共用端口时，所有启用项目都需设置此前缀。更改后访问路径也会改变。</FieldDescription>
+                <code className="break-all text-xs text-primary">{projectEntryUrl({ name: name.trim() || "项目名", listen: formattedPort(listen), path_prefix: pathPrefix, route_prefix: routePrefix.trim() || null })}</code>
+              </FieldContent>
+              <Switch checked={pathPrefix} onCheckedChange={setPathPrefix} disabled={saving || deleting} aria-label="使用项目路径前缀" />
+            </Field>
+            {pathPrefix && <label className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+              <Checkbox className="mt-0.5" checked={stripPrefix} onCheckedChange={(checked) => setStripPrefix(checked === true)} disabled={saving || deleting} />
+              转发时移除项目路径前缀（旧配置默认保留前缀）
+            </label>}
+
+            <Disclosure title="高级代理规则" disabled={saving || deleting}><fieldset disabled={saving || deleting} className="space-y-5">
+              <p className="text-xs leading-5 text-muted-foreground">留空的参数继承全局默认，环境可以继续覆盖。</p>
+              <SettingField label="自定义匹配前缀" description="例如 /api/order，覆盖项目名称前缀。共用端口时，匹配前缀须不同。"><Input aria-label="自定义匹配前缀" value={routePrefix} onChange={(event) => setRoutePrefix(event.target.value)} placeholder={pathPrefix ? `/${name || "项目名"}` : "留空匹配整个端口"} /></SettingField>
+              <SettingField label="替换为转发前缀" description="填写后替换匹配前缀，再拼接到后端基础路径。填 / 表示移除匹配前缀。"><Input aria-label="替换为转发前缀" value={rewritePrefix} onChange={(event) => setRewritePrefix(event.target.value)} placeholder="例如 /v1，留空沿用现有转发方式" /></SettingField>
+              <ProxyEditor ref={proxyEditor} initialValue={project?.proxy} inherited={proxyDefaults} />
+            </fieldset></Disclosure>
+            <Disclosure title="项目健康检查" disabled={saving || deleting}><fieldset disabled={saving || deleting}><HealthEditor ref={healthEditor} initialValue={project?.health} /></fieldset></Disclosure>
 
             {isEditing && project && (
               <Field orientation="horizontal">
@@ -257,3 +341,5 @@ export function ProjectDialog({
     </Dialog>
   )
 }
+
+function formattedPort(listen: string) { return listen.trim().startsWith(":") ? listen.trim() : `:${listen.trim() || "8080"}` }

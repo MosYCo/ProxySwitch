@@ -1,10 +1,62 @@
-use crate::model::{Environment, Project};
+use crate::model::{Config, Environment, Project};
 use anyhow::{bail, Result};
 use std::net::ToSocketAddrs;
 
+pub fn validate_config(config: &Config) -> Result<()> {
+    crate::preferences::validate_settings(&config.settings)?;
+    let mut ports = std::collections::HashMap::<u16, Vec<&Project>>::new();
+    for (name, project) in &config.projects {
+        if name != &project.name {
+            bail!("项目键与名称不一致: {}", name);
+        }
+        validate_project(project)?;
+        if !project.has_proxy_route() {
+            continue;
+        }
+        ports
+            .entry(project.listen.trim().strip_prefix(':').unwrap().parse()?)
+            .or_default()
+            .push(project);
+    }
+    for (port, projects) in ports {
+        if projects.len() > 1 && projects.iter().any(|p| p.route_path().is_none()) {
+            bail!(
+                "端口 :{} 已被使用。共用端口前，请为该端口的所有启用项目显式启用路径前缀",
+                port
+            );
+        }
+        let mut paths = std::collections::HashSet::new();
+        for project in &projects {
+            if let Some(path) = project.route_path() {
+                if !paths.insert(path) {
+                    bail!("端口 :{} 存在重复的项目匹配路径", port);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn validate_project(project: &Project) -> Result<()> {
+    crate::preferences::validate_proxy(&project.proxy)?;
+    crate::preferences::validate_health(&project.health)?;
+    if let Some(path) = &project.route_prefix {
+        crate::preferences::validate_path(path, "匹配路径")?;
+        if path == "/" || path.ends_with('/') {
+            bail!("匹配路径不能为 / 或以 / 结尾");
+        }
+    }
+    if let Some(path) = &project.rewrite_prefix {
+        crate::preferences::validate_path(path, "转发路径")?;
+        if project.route_path().is_none() {
+            bail!("设置转发路径前须指定匹配路径");
+        }
+    }
     validate_name("project name", &project.name)?;
     validate_listen(&project.listen)?;
+    if project.path_prefix && project.name.contains(['*', '{', '}']) {
+        bail!("启用路径前缀时，项目名称不能包含 *、{{ 或 }}");
+    }
 
     for (env_name, env) in &project.environments {
         validate_name("environment name", env_name)?;
@@ -22,6 +74,8 @@ pub fn validate_project(project: &Project) -> Result<()> {
 }
 
 pub fn validate_environment(env: &Environment) -> Result<()> {
+    crate::preferences::validate_proxy(&env.proxy)?;
+    crate::preferences::validate_health(&env.health)?;
     validate_backend_addr(&env.addr)
 }
 
@@ -75,6 +129,13 @@ pub fn validate_backend_addr(addr: &str) -> Result<()> {
         }
         if url.scheme() != "http" && url.scheme() != "https" {
             bail!("addr scheme must be http or https");
+        }
+        if url.query().is_some()
+            || url.fragment().is_some()
+            || !url.username().is_empty()
+            || url.password().is_some()
+        {
+            bail!("后端地址支持路径，但不能包含用户名、密码、查询参数或片段");
         }
         if let Some(port) = url.port() {
             validate_port(port)?;

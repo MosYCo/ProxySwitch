@@ -256,6 +256,18 @@ Dashboard
 
 ---
 
+### 4.3 统一设置
+
+侧栏「设置」打开按分类组织的设置面板，包含启动与退出、请求与日志、健康检查、代理默认值、Caddy 引擎、数据与备份。保存前在分类之间切换保留草稿，关闭时提示未保存的修改；最小窗口下内容滚动，保存按钮保持可见。
+
+配置存储新增 `settings`，旧配置自动补齐默认值。代理参数按全局、项目、环境依次覆盖；健康检查的路径、超时、状态码和回退选项也可按项目及环境覆盖。全局健康检查开关作为总开关，未启用检查的环境不会持续显示待检测。
+
+请求日志支持采集开关、100–10000 条每来源缓存、慢请求阈值、忽略路径、查询参数脱敏及磁盘保留期限。脱敏发生在请求摘要生成、事件发送及磁盘写入之前；保留天数默认 0，不自动清理既有日志。引擎日志级别与访问日志独立配置。
+
+数据操作支持导入预览、同名项目合并覆盖或全部替换，以及单项目/全部项目导出到下载目录。修改前默认自动备份，备份数量可配置；恢复可选择仅项目，或连同应用设置恢复。运行时配置变更仍经过 Caddy 确认和失败回滚，停止引擎时可离线保存。
+
+Windows 登录自启仅在用户保存该选项后修改当前用户的启动项。窗口关闭行为可选择托盘或退出，启动时可隐藏窗口。Caddy 自动恢复默认关闭，开启后仅重启意外退出的托管子进程，手动停止不恢复；达到重试上限后停止，稳定运行一分钟后重置计数。
+
 ## 5. 后端功能清单
 
 ### 5.1 数据模型
@@ -271,6 +283,7 @@ struct Config {
 struct Project {
     name: String,              // 唯一标识
     listen: String,            // 监听端口, 格式 ":port"
+    enabled: bool,             // 是否启用，旧配置默认 true；停用后不生成路由或执行健康检查
     desc: String,              // 描述
     environments: HashMap<String, Environment>,
     current: String,           // 当前活跃环境名
@@ -354,15 +367,17 @@ struct LogEntry {
 **输出**: Caddy JSON 配置
 
 **生成规则**:
-1. 按 `listen` 端口分组项目
-2. 每个端口生成一个 server
+1. 按 `listen` 端口分组已启用且有当前环境的项目，停用或空项目不打开端口。独占端口上的最后一个项目停用后释放端口；共用端口上的其他项目继续运行。
+2. 每个端口生成一个 server；共用端口前，所有项目必须显式启用 `path_prefix`
 3. 每个项目生成一个 route:
-   - match: `host=localhost`, `path=/{project_name}/*`
+   - match: 仅在 `path_prefix=true` 时匹配 `/{project_name}` 和 `/{project_name}/*`，不限制 Host
+   - `strip_prefix=true` 时先移除项目路径前缀；旧配置迁移保留原转发方式
+   - 后端 URL 的路径作为基础路径加在请求路径前，保留请求查询参数
    - handler: `reverse_proxy`
    - upstream: `{addr}`
    - headers: 设置 `X-Forwarded-Prefix` 和 `Host`
 4. HTTPS 后端自动添加 TLS transport 配置
-5. 单路由时自动移除 match（匹配所有请求）
+5. 路径模式由项目配置决定，项目数量变化不会改变已有路由
 6. 按 listen 和 project name 排序，保证配置稳定
 
 **示例输出**:
@@ -376,7 +391,7 @@ struct LogEntry {
           "listen": [":20000"],
           "routes": [
             {
-              "match": [{ "host": ["localhost"], "path": ["/公有云/*"] }],
+              "match": [{ "path": ["/公有云", "/公有云/*"] }],
               "handle": [{
                 "handler": "reverse_proxy",
                 "upstreams": [{ "dial": "test3-kf.7moor.com:443" }],
@@ -402,7 +417,7 @@ struct LogEntry {
 
 ### 5.4 健康检查 (Health Checker)
 
-**职责**: 定时 HTTP 检查所有后端环境
+**职责**: 按配置范围定时 HTTP 检查启用项目的后端环境
 
 | 方法 | 说明 |
 |------|------|
@@ -415,13 +430,13 @@ struct LogEntry {
 | `force_check_project(name)` | 强制检查单个项目 |
 
 **检查逻辑**:
-1. 先请求 `{base_url}/health`
-2. 失败则回退请求 `{base_url}/`
-3. HTTP 状态码 < 400 视为健康
-4. 记录响应延迟 (ms)
-5. 状态变化时通过 Tauri 事件通知前端
+1. 请求 `{base_url}{health.path}`，路径按全局、项目、环境继承，默认 `/health`
+2. 允许回退时，网络失败或返回 404/405 时尝试 `{base_url}/`；显式接受的状态码不触发回退
+3. 未指定预期状态码时接受 200–399；指定后只接受列出的状态码，不跟随重定向
+4. 记录包括回退请求在内的总延迟 (ms)，HTTPS 遵循环境的证书校验设置
+5. 每轮完成发送 `health-updated` 更新检查时间和延迟，健康状态变化时另发 `health-changed`
 
-**默认间隔**: 30 秒
+**默认间隔**: 30 秒，可在设置中调整；修改配置后唤醒检查器，避免重复并发检查
 
 ### 5.5 日志系统 (Logger)
 
@@ -433,11 +448,17 @@ struct LogEntry {
 | `get_recent(limit)` | 获取最近 N 条 |
 | `get_by_level(level)` | 按级别筛选 |
 | `get_by_category(category)` | 按分类筛选 |
-| `clear()` | 清空日志 |
+| `clear(source?)` | 按来源清空会话缓存并返回清空游标，保留磁盘日志 |
 
 **分类**: `system` | `proxy` | `health` | `caddy`
 
 **持久化**: 写入 `logs/` 目录下的日志文件
+
+日志页的状态概览持续展示引擎、代理项目和后端连接情况；默认展示「请求记录」，并可切换「软件事件」「Caddy 运行日志」。请求记录展示项目、环境、后端、方法、原始 URI、响应码、耗时和来源，支持项目与异常筛选。Caddy 路由通过 `log_append` 写入请求发生时的项目、环境及后端快照，在重写路径之前记录原始 URI；配置文本经 URL 编码避免被 Caddy 当作请求占位符展开。历史记录按快照展示，不根据当前项目配置猜测归属。
+
+软件事件、Caddy 两个来源默认各保留最近 500 条，可在设置中调整到 100–10000 条；Caddy 来源包含访问请求和引擎日志。日志有单调递增 ID，实时推送与快照合并时按 ID 去重，清空游标阻止旧快照重新带回记录。默认收起成功的管理接口轮询及调试记录，保留所有警告、错误与失败请求；连续相同事件可合并计数，访问请求逐条展示。Caddy JSON 原始结构经过查询参数脱敏后保留在详情和磁盘文件中，调整脱敏规则会使既有 Caddy 会话缓存失效。
+
+导航分为「项目总览」「项目配置」和「运行日志」：总览列出所有项目的状态卡片；项目入口只展示该项目的启停和环境配置；项目中的「查看请求」进入全局日志并预设项目筛选，不嵌入日志面板。
 
 ### 5.6 输入验证 (Validation)
 
@@ -473,7 +494,7 @@ struct LogEntry {
 | `get_logs` | `limit?` | `Vec<LogEntry>` | 获取日志 |
 | `get_logs_by_level` | `level` | `Vec<LogEntry>` | 按级别筛选 |
 | `get_logs_by_category` | `category` | `Vec<LogEntry>` | 按分类筛选 |
-| `clear_logs` | - | `()` | 清空日志 |
+| `clear_logs` | `source?: runtime / caddy` | `LogClearResult` | 清空指定来源的会话缓存 |
 | `get_caddy_status` | - | `CaddyStatus` | Caddy 状态 |
 | `start_caddy` | - | `()` | 启动 Caddy |
 | `stop_caddy` | - | `()` | 停止 Caddy |
@@ -485,10 +506,14 @@ struct LogEntry {
 
 | 事件名 | 数据 | 触发时机 |
 |--------|------|---------|
-| `environment.switched` | `{ project, environment }` | 环境切换成功 |
-| `proxy.restarted` | `{}` | 代理重启成功 |
-| `health.changed` | `{ project, environment, status }` | 健康状态变化 |
-| `log.created` | `LogEntry` | 新日志产生 |
+| `environment-switched` | `{ project, environment }` | 环境切换成功 |
+| `proxy-restarted` | `{}` | 代理重启成功 |
+| `config-changed` | `()` | 项目或环境配置变化 |
+| `health-updated` | `HashMap` | 健康检查完成 |
+| `health-changed` | `{ project, environment, status }` | 健康状态变化 |
+| `log-created` | `LogEntry` | 新日志产生 |
+| `logs-cleared` | `{ source, through_id }` | 日志缓存清空 |
+| `caddy-status-changed` | `()` | Caddy 启停或进程退出 |
 
 ---
 
@@ -517,7 +542,7 @@ struct LogEntry {
 ```
 
 ### 6.2 窗口行为
-- 关闭窗口 → 最小化到托盘（不退出）
+- 关闭窗口 → 默认隐藏到托盘，可在设置中改为退出
 - 双击托盘图标 → 显示窗口
 - 退出菜单 → 优雅关闭 Caddy + 退出
 

@@ -1,0 +1,32 @@
+name: 问题报告
+description: 报告可复现的功能或界面问题
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: 请使用示例地址和脱敏日志。安全漏洞请通过 Security 私密报告。
+  - type: input
+    id: version
+    attributes:
+      label: 应用版本与系统
+      placeholder: 例如 2.1.1，Windows 11 x64
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 说明项目、环境和操作过程，可附不含敏感信息的示例配置。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为与实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 日志或截图
+      description: 删除令牌、Cookie、真实域名及其他个人信息后再提交。

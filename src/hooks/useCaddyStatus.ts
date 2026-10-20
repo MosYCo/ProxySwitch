@@ -32,21 +32,18 @@ export function useCaddyStatus(refreshDeps?: () => void) {
   const canManageCaddy = caddyStatus?.managed || !isCaddyActive
 
   const startCaddy = useCallback(async () => {
-    await caddyApi.start()
-    await fetchStatus()
-    refreshDeps?.()
+    try { await caddyApi.start() }
+    finally { await fetchStatus(); refreshDeps?.() }
   }, [fetchStatus, refreshDeps])
 
   const stopCaddy = useCallback(async () => {
-    await caddyApi.stop()
-    await fetchStatus()
-    refreshDeps?.()
+    try { await caddyApi.stop() }
+    finally { await fetchStatus(); refreshDeps?.() }
   }, [fetchStatus, refreshDeps])
 
   const restartCaddy = useCallback(async () => {
-    await caddyApi.restart()
-    await fetchStatus()
-    refreshDeps?.()
+    try { await caddyApi.restart() }
+    finally { await fetchStatus(); refreshDeps?.() }
   }, [fetchStatus, refreshDeps])
 
   return {

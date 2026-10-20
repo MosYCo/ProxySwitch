@@ -1,5 +1,5 @@
 mod client;
-mod generator;
+pub(crate) mod generator;
 mod manager;
 
 pub use client::Client;

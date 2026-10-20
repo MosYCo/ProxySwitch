@@ -1,24 +1,35 @@
 import { useState, useEffect } from "react"
-import { Activity, Loader2 } from "lucide-react"
+import { Activity, Layers, Plus, Search, X } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EnvironmentCard } from "@/components/EnvironmentCard"
 import { LogViewer } from "@/components/LogViewer"
-import { Header } from "@/components/Header"
+import { WorkspaceHeader } from "@/components/WorkspaceHeader"
+import { Sidebar, type WorkspaceView } from "@/components/Sidebar"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
+import { useToastContext } from "@/contexts/ToastContext"
 import { StatsBar } from "@/components/StatsBar"
 import { ProjectToolbar } from "@/components/ProjectToolbar"
+import { ProjectOverview } from "@/components/ProjectOverview"
 import { EmptyState } from "@/components/EmptyState"
 import { ProjectDialog } from "@/components/dialogs/ProjectDialog"
 import { EnvironmentDialog } from "@/components/dialogs/EnvironmentDialog"
-import { CaddySettingsDialog } from "@/components/dialogs/CaddySettingsDialog"
+import { SettingsDialog } from "@/components/dialogs/SettingsDialog"
+import { useAppSettings } from "@/hooks/useAppSettings"
+import { healthCheckEnabled, resolveProxyOptions } from "@/lib/settings"
 import { useProjects } from "@/hooks/useProjects"
 import { useWebSocket } from "@/hooks/useWebSocket"
 import { useCaddyStatus } from "@/hooks/useCaddyStatus"
 import { useDialogs } from "@/hooks/useDialogs"
 import { proxyApi } from "@/api"
+import { hasProxyRoute } from "@/lib/projectRouting"
+import { appEvents } from "@/lib/appEvents"
 import type { Project, Environment } from "@/api"
 
 export function Dashboard() {
+  const { settings, refresh: refreshSettings } = useAppSettings()
   const {
     projects,
     loading,
@@ -27,22 +38,33 @@ export function Dashboard() {
     createProject,
     updateProject,
     deleteProject,
+    setProjectEnabled,
     createEnvironment,
     updateEnvironment,
     deleteEnvironment,
     switchEnvironment,
     refresh,
     refreshHealth,
+    checkHealth,
   } = useProjects()
 
-  const [selectedProject, setSelectedProject] = useState<string | null>(null)
+  const [selectedProject, setSelectedProject] = useState<string | null>(() => {
+    try { return localStorage.getItem("caddy-desk:last-project") } catch { return null }
+  })
+  const [view, setView] = useState<WorkspaceView>("overview")
+  const [logProject, setLogProject] = useState<string | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [envQuery, setEnvQuery] = useState("")
+  const [envFilter, setEnvFilter] = useState<"all" | "active" | "unhealthy">("all")
+  const { toast } = useToastContext()
   const [caddySettingsOpen, setCaddySettingsOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [restartingProxy, setRestartingProxy] = useState(false)
-  const [switchingEnv, setSwitchingEnv] = useState<string | null>(null)
+  const [switchingEnv, setSwitchingEnv] = useState<{ project: string; environment: string } | null>(null)
   const [caddyAction, setCaddyAction] = useState<"start" | "stop" | "restart" | null>(null)
+  const [changingProject, setChangingProject] = useState<string | null>(null)
 
-  const { isConnected, on } = useWebSocket("/ws/events")
+  const { isConnected, connectionError, on } = useWebSocket("/ws/events")
 
   const {
     caddyStatus,
@@ -71,28 +93,37 @@ export function Dashboard() {
     openEditEnv,
   } = useDialogs()
 
-  // 监听 WebSocket 事件
+  // 监听桌面应用事件
   useEffect(() => {
-    const unsubSwitch = on("environment.switched", () => {
+    const unsubSwitch = on(appEvents.environmentSwitched, () => {
       refresh()
       refreshHealth()
     })
-    const unsubRestart = on("proxy.restarted", () => {
+    const unsubRestart = on(appEvents.proxyRestarted, () => {
       refresh()
     })
-    const unsubHealth = on("health.changed", () => {
+    const unsubHealth = on(appEvents.healthUpdated, () => {
       refreshHealth()
     })
+    const unsubConfig = on(appEvents.configChanged, () => { refresh(); refreshHealth(); refreshSettings() })
+    const unsubCaddy = on(appEvents.caddyStatusChanged, () => { refreshCaddyStatus() })
 
     return () => {
       unsubSwitch()
       unsubRestart()
       unsubHealth()
+      unsubConfig()
+      unsubCaddy()
     }
-  }, [on, refresh, refreshHealth])
+  }, [on, refresh, refreshHealth, refreshCaddyStatus, refreshSettings])
+
+  useEffect(() => {
+    if (isConnected) { refresh(); refreshHealth() }
+  }, [isConnected, refresh, refreshHealth])
 
   // 设置默认项目
   useEffect(() => {
+    if (loading) return
     if (projects.length > 0 && !selectedProject) {
       setSelectedProject(projects[0].name)
     } else if (
@@ -101,36 +132,65 @@ export function Dashboard() {
       !projects.some((project) => project.name === selectedProject)
     ) {
       setSelectedProject(projects[0].name)
+      setView((current) => current === "project" ? "overview" : current)
     } else if (projects.length === 0 && selectedProject) {
       setSelectedProject(null)
+      setView((current) => current === "project" ? "overview" : current)
     }
-  }, [projects, selectedProject])
+  }, [projects, selectedProject, loading])
 
   const currentProject = projects.find((p) => p.name === selectedProject)
-  const projectHealth =
-    selectedProject && healthStatuses[selectedProject]
-      ? healthStatuses[selectedProject]
-      : {}
+  useEffect(() => {
+    if (loading || !currentProject) return
+    try { localStorage.setItem("caddy-desk:last-project", currentProject.name) } catch { /* Preferences are optional when storage is unavailable. */ }
+  }, [loading, currentProject?.name])
 
+  const projectHealth = selectedProject ? healthStatuses[selectedProject] || {} : {}
+  const environments = Object.entries(currentProject?.environments || {}).sort(([a], [b]) => Number(b === currentProject?.current) - Number(a === currentProject?.current) || a.localeCompare(b, "zh-CN", { numeric: true }))
+  const checkedTargets = enabledProjectsForHealth(projects, settings)
+  const unhealthyCount = currentProject?.enabled ? environments.filter(([name, env]) => healthCheckEnabled(settings, currentProject, name, env) && projectHealth[name]?.healthy === false).length : 0
+  const filteredEnvironments = environments.filter(([name, env]) => {
+    const query = envQuery.trim().toLowerCase()
+    return (envFilter === "all" || (envFilter === "active" && name === currentProject?.current) || (envFilter === "unhealthy" && currentProject && healthCheckEnabled(settings, currentProject, name, env) && projectHealth[name]?.healthy === false)) &&
+      (!query || [name, env.desc, env.addr].some((value) => value.toLowerCase().includes(query)))
+  })
+
+  useEffect(() => {
+    setEnvQuery("")
+    setEnvFilter("all")
+  }, [selectedProject])
   // 计算统计数据
   const totalEnvs = projects.reduce(
     (sum, p) => sum + (p.environments ? Object.keys(p.environments).length : 0),
     0
   )
-  const healthyEnvs = Object.values(healthStatuses).reduce(
-    (sum, project) =>
-      sum +
-      (project
-        ? Object.values(project).filter((s) => s?.healthy).length
-        : 0),
-    0
-  )
-  const totalPorts = projects.map((p) => p.listen).join(", ")
+  const enabledProjects = projects.filter((project) => project.enabled)
+  const checkedEnvs = checkedTargets.length
+  const testedEnvs = checkedTargets.filter(([project, name]) => healthStatuses[project]?.[name] !== undefined).length
+  const healthyEnvs = checkedTargets.filter(([project, name]) => healthStatuses[project]?.[name]?.healthy).length
+  const totalPorts = projects.filter(hasProxyRoute).map((p) => p.listen)
+
+  const handleViewChange = (nextView: WorkspaceView) => {
+    if (nextView === "logs") setLogProject(null)
+    setView(nextView)
+    window.scrollTo({ top: 0 })
+  }
+
+  const handleOpenProject = (name: string) => {
+    setSelectedProject(name)
+    handleViewChange("project")
+  }
+
+  const handleProjectRequests = (name: string) => {
+    setLogProject(name)
+    setView("logs")
+    window.scrollTo({ top: 0 })
+  }
 
   const handleSwitch = async (envName: string) => {
     if (selectedProject) {
       try {
-        setSwitchingEnv(envName)
+        setSwitchingEnv({ project: selectedProject, environment: envName })
         await switchEnvironment(selectedProject, envName)
       } finally {
         setSwitchingEnv(null)
@@ -141,7 +201,7 @@ export function Dashboard() {
   const handleRefresh = async () => {
     try {
       setRefreshing(true)
-      await Promise.all([refresh(), refreshHealth(), refreshCaddyStatus()])
+      await Promise.all([refresh(), checkHealth(), refreshCaddyStatus()])
     } finally {
       setRefreshing(false)
     }
@@ -157,6 +217,8 @@ export function Dashboard() {
       } else {
         await restartCaddy()
       }
+    } catch (err) {
+      toast({ title: "服务操作失败", description: err instanceof Error ? err.message : String(err), variant: "destructive" })
     } finally {
       setCaddyAction(null)
     }
@@ -167,8 +229,22 @@ export function Dashboard() {
       setRestartingProxy(true)
       await proxyApi.restart()
       await refresh()
+      toast({ title: "配置已重载", description: "代理配置已更新", variant: "success" })
+    } catch (err) {
+      toast({ title: "重载失败", description: err instanceof Error ? err.message : String(err), variant: "destructive" })
     } finally {
       setRestartingProxy(false)
+    }
+  }
+
+  const handleProjectEnabledChange = async (enabled: boolean) => {
+    if (!selectedProject) return
+    const name = selectedProject
+    setChangingProject(name)
+    try {
+      await setProjectEnabled(name, enabled)
+    } finally {
+      setChangingProject(null)
     }
   }
 
@@ -178,7 +254,9 @@ export function Dashboard() {
     if (editingProject) {
       return updateProject(editingProject.name, project)
     }
-    return createProject(project)
+    const saved = await createProject(project)
+    if (saved) handleOpenProject(project.name)
+    return saved
   }
 
   const handleDeleteProject = async () => {
@@ -186,6 +264,7 @@ export function Dashboard() {
       const deleted = await deleteProject(editingProject.name)
       if (deleted) {
         setSelectedProject(null)
+        setView("overview")
       }
       return deleted
     }
@@ -221,101 +300,156 @@ export function Dashboard() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background bg-grid">
-        <div className="flex w-full max-w-sm flex-col items-center gap-4 px-6">
-          <Loader2 className="size-8 animate-spin text-primary" />
-          <div className="flex w-full flex-col gap-2">
-            <Skeleton className="h-3 w-2/3 self-center" />
-            <Skeleton className="h-3 w-full" />
-          </div>
-          <p className="text-xs text-muted-foreground">正在加载代理配置</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen bg-background bg-grid">
-      <Header
-        isConnected={isConnected}
+    <div className="min-h-screen bg-background">
+      <Sidebar
+        projects={projects}
+        selectedProject={selectedProject}
+        view={view}
+        onViewChange={handleViewChange}
+        onSelectProject={handleOpenProject}
+        onAddProject={openAddProject}
+        onSettings={() => setCaddySettingsOpen(true)}
         isCaddyActive={isCaddyActive}
         canManageCaddy={canManageCaddy}
         caddyManaged={caddyStatus?.managed}
-        onStart={() => handleCaddyAction("start")}
-        onStop={() => handleCaddyAction("stop")}
-        onRestart={() => handleCaddyAction("restart")}
-        onRefresh={handleRefresh}
-        onSettings={() => setCaddySettingsOpen(true)}
-        refreshing={refreshing}
+        statusKnown={caddyStatus !== null}
         caddyAction={caddyAction}
+        onCaddyAction={handleCaddyAction}
+        mobileOpen={sidebarOpen}
+        onMobileOpenChange={setSidebarOpen}
       />
-
-      <main className="container flex flex-col gap-4 px-3 py-4 sm:px-4">
-        {error && (
-          <Alert variant="destructive">
-            <Activity className="size-4" />
-            <AlertTitle>代理状态异常</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* 统计卡片 */}
-        <StatsBar
-          projectCount={projects.length}
-          envCount={totalEnvs}
-          healthyCount={healthyEnvs}
-          ports={totalPorts}
-        />
-
-        {/* 项目工具栏 */}
-        <ProjectToolbar
-          projects={projects}
-          selectedProject={selectedProject}
-          currentProject={currentProject}
-          onSelectProject={setSelectedProject}
-          onAddProject={openAddProject}
-          onEditProject={handleEditProject}
-          onAddEnv={openAddEnv}
-          onRestartProxy={handleRestartProxy}
-          restartingProxy={restartingProxy}
-        />
-
-        {/* 环境列表 */}
-        {currentProject && (
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {Object.entries(currentProject.environments || {}).map(
-              ([envName, env]) => (
-                <EnvironmentCard
-                  key={envName}
-                  name={envName}
-                  environment={env}
-                  isActive={currentProject.current === envName}
-                  healthStatus={projectHealth?.[envName]}
-                  onSwitch={() => handleSwitch(envName)}
-                  onEdit={() => handleEditEnv(envName)}
-                  onDelete={() => handleDeleteEnv(envName)}
-                  switching={switchingEnv === envName}
-                  disabled={switchingEnv !== null}
-                />
-              )
-            )}
+      <div className="min-w-0 md:pl-[224px]">
+        <WorkspaceHeader title={view === "overview" ? "项目总览" : view === "logs" ? "运行日志" : currentProject?.name || "项目配置"} isConnected={isConnected} syncError={connectionError} onRefresh={handleRefresh} refreshing={refreshing} onOpenSidebar={() => setSidebarOpen(true)} />
+        <main className="workspace-content">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">{view === "overview" ? "项目总览" : view === "logs" ? "运行日志" : "项目配置"}</h1>
+              <p className="mt-2 text-[13px] leading-5 text-muted-foreground">{view === "overview" ? "查看所有项目的运行状态，选择项目进入配置。" : view === "logs" ? "按项目追踪请求，查看转发目标、响应状态和耗时。" : "管理当前项目的启停、代理入口与后端环境。"}</p>
+            </div>
+            {view === "overview" && <Button onClick={openAddProject}><Plus className="size-4" />新建项目</Button>}
           </div>
-        )}
+          {error && (
+            <Alert variant="destructive">
+              <Activity className="size-4" />
+              <AlertTitle>操作未完成</AlertTitle>
+              <AlertDescription className="flex flex-wrap items-center gap-3"><span className="min-w-0 flex-1 break-words">{error}</span><Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>刷新状态</Button></AlertDescription>
+            </Alert>
+          )}
 
-        {/* 空状态 */}
-        {projects.length === 0 && <EmptyState onAdd={openAddProject} />}
+          {view === "overview" && <div className="page-enter flex flex-col gap-6">
+            {loading ? (
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4" role="status" aria-label="正在加载代理配置">
+                {[0, 1, 2, 3].map((item) => <Skeleton key={item} className="h-[112px] rounded-xl" />)}
+              </div>
+            ) : <StatsBar
+              projectCount={projects.length}
+              enabledProjectCount={enabledProjects.length}
+              envCount={totalEnvs}
+              checkedEnvCount={checkedEnvs}
+              testedEnvCount={testedEnvs}
+              healthyCount={healthyEnvs}
+              ports={totalPorts}
+              isCaddyActive={isCaddyActive}
+              statusKnown={caddyStatus !== null}
+            />}
+            {!loading && projects.length > 0 && <ProjectOverview projects={projects} isCaddyActive={isCaddyActive} statusKnown={caddyStatus !== null} onOpenProject={handleOpenProject} onViewRequests={handleProjectRequests} />}
+            {!loading && projects.length === 0 && <EmptyState onAdd={openAddProject} />}
+          </div>}
 
-        {/* 日志 */}
-        <LogViewer />
-      </main>
+          {view === "project" && currentProject && <div className="page-enter flex flex-col gap-6">
+            <ProjectToolbar
+              project={currentProject}
+              onEditProject={handleEditProject}
+              onViewRequests={() => handleProjectRequests(currentProject.name)}
+              onRestartProxy={handleRestartProxy}
+              restartingProxy={restartingProxy}
+              isCaddyActive={isCaddyActive}
+              statusKnown={caddyStatus !== null}
+              canStartCaddy={canManageCaddy}
+              startingCaddy={caddyAction === "start"}
+              onStartCaddy={() => handleCaddyAction("start")}
+              onAddEnvironment={openAddEnv}
+              onChooseEnvironment={() => {
+                setEnvFilter("all")
+                setEnvQuery("")
+                document.getElementById("environments-heading")?.focus()
+                document.getElementById("environments-heading")?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })
+              }}
+              onEnabledChange={handleProjectEnabledChange}
+              changingEnabled={changingProject === currentProject.name}
+              disabled={changingProject !== null || caddyAction !== null || switchingEnv !== null}
+            />
+
+            {currentProject && (
+              <section aria-labelledby="environments-heading">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 id="environments-heading" tabIndex={-1} className="flex scroll-mt-24 items-center gap-2 text-[15px] font-semibold">后端环境<span className="rounded-md bg-secondary px-1.5 py-0.5 text-xs font-medium text-muted-foreground">{environments.length}</span></h2>
+                    <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{caddyStatus === null ? "正在确认引擎状态。" : !isCaddyActive ? "添加、编辑或切换环境前，请先启动 Caddy 引擎。" : currentProject.enabled ? "当前选择置顶，切换后立即更新此项目的转发目标。" : "项目已停用，选择环境后需启用项目才会转发请求。"}</p>
+                  </div>
+                  <div className="flex w-full items-center gap-2 sm:w-auto">
+                    <div className="relative min-w-0 flex-1 sm:w-[190px]">
+                      <Search className="pointer-events-none absolute left-3 top-3 size-3.5 text-muted-foreground/70" />
+                      <Input value={envQuery} onChange={(event) => setEnvQuery(event.target.value)} placeholder="搜索环境或地址…" aria-label="搜索环境或地址" className="h-9 pl-9 pr-8 text-xs" />
+                      {envQuery && <button className="absolute right-2 top-2 rounded p-0.5 text-muted-foreground hover:text-foreground" aria-label="清除环境搜索" onClick={() => setEnvQuery("")}><X className="size-3.5" /></button>}
+                    </div>
+                    <Button variant="outline" size="sm" className="h-9 shrink-0 bg-card" onClick={openAddEnv}><Plus className="size-3.5" />添加环境</Button>
+                  </div>
+                </div>
+                <div className="mb-4 mt-4 flex flex-wrap items-center gap-x-5 border-b" role="group" aria-label="环境筛选">
+                  {([{ value: "all", label: "全部环境", count: environments.length }, { value: "active", label: "当前选择", count: currentProject.environments[currentProject.current] ? 1 : 0 }, { value: "unhealthy", label: "连接异常", count: unhealthyCount }] as const).map((filter) => (
+                    <button key={filter.value} onClick={() => setEnvFilter(filter.value)} aria-pressed={envFilter === filter.value} className={cn("-mb-px border-b-2 px-0.5 py-3 text-xs transition-colors focus-visible:outline-primary", envFilter === filter.value ? "border-primary font-medium text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                      {filter.label}<span className={cn("ml-1.5 rounded px-1.5 py-0.5 text-[11px] tabular-nums", filter.value === "unhealthy" && filter.count > 0 ? "bg-destructive/10 text-destructive" : "bg-muted")}>{filter.count}</span>
+                    </button>
+                  ))}
+                  {envQuery && <span className="ml-auto py-3 text-xs text-muted-foreground" role="status">找到 {filteredEnvironments.length} 个环境</span>}
+                </div>
+                <div className="grid items-stretch gap-4 min-[1100px]:grid-cols-2 min-[1600px]:grid-cols-3">
+                  {filteredEnvironments.map(
+                    ([envName, env]) => (
+                      <EnvironmentCard
+                        key={envName}
+                        name={envName}
+                        environment={env}
+                        isActive={currentProject.current === envName}
+                        projectEnabled={currentProject.enabled}
+                        isCaddyActive={isCaddyActive}
+                        statusKnown={caddyStatus !== null}
+                        healthStatus={currentProject.enabled ? projectHealth?.[envName] : undefined}
+                        healthCheckEnabled={healthCheckEnabled(settings, currentProject, envName, env)}
+                        onSwitch={() => handleSwitch(envName)}
+                        onEdit={() => handleEditEnv(envName)}
+                        onDelete={() => handleDeleteEnv(envName)}
+                        switching={switchingEnv?.project === currentProject.name && switchingEnv.environment === envName}
+                        disabled={switchingEnv !== null || changingProject !== null || caddyAction !== null}
+                      />
+                    )
+                  )}
+                </div>
+                {filteredEnvironments.length === 0 && <div className="surface flex flex-col items-center border-dashed px-6 py-10 text-center">
+                  <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">{environments.length === 0 ? <Layers className="size-5" /> : <Search className="size-5" />}</div>
+                  <h3 className="text-sm font-medium">{environments.length === 0 ? "给项目添加第一个环境" : envFilter === "unhealthy" && !envQuery ? currentProject.enabled ? "当前没有连接异常的环境" : "项目已停用，健康检查已暂停" : "没有找到匹配的环境"}</h3>
+                  <p className="mt-2 text-xs text-muted-foreground">{environments.length === 0 ? "填写环境名称和后端地址，第一个环境会自动选中。" : envFilter === "unhealthy" && !envQuery ? "可在全部环境中查看每个后端的检查状态。" : "试试其他关键词，或清除筛选查看全部环境。"}</p>
+                  <Button variant="outline" size="sm" className="mt-5" onClick={environments.length === 0 ? openAddEnv : () => { setEnvQuery(""); setEnvFilter("all") }}>{environments.length === 0 ? "添加环境" : "查看全部环境"}</Button>
+                </div>}
+              </section>
+            )}
+
+          </div>}
+
+          {view === "logs" && <LogViewer settings={settings} caddyStatus={caddyStatus} projects={projects} healthStatuses={healthStatuses} isConnected={isConnected} syncError={connectionError} initialProject={logProject} onSelectProject={handleOpenProject} />}
+          <footer className="flex flex-wrap items-center justify-between gap-2 pb-1 text-[10px] text-muted-foreground/70"><span>每一条线路，都清晰可见。</span><span>Powered by Caddy</span></footer>
+        </main>
+      </div>
 
       {/* 项目对话框 */}
       <ProjectDialog
         open={projectDialogOpen}
         onOpenChange={setProjectDialogOpen}
         project={editingProject}
+        projects={projects}
+        proxyDefaults={settings.proxy}
         onSave={handleSaveProject}
         onDelete={handleDeleteProject}
       />
@@ -327,19 +461,28 @@ export function Dashboard() {
           onOpenChange={setEnvDialogOpen}
           envName={editingEnvName}
           environment={editingEnv}
+          isCurrent={editingEnvName === currentProject?.current}
+          proxyDefaults={resolveProxyOptions(settings.proxy, currentProject?.proxy)}
           onSave={handleSaveEnv}
           onDelete={handleDeleteEnv}
         />
       )}
 
-      <CaddySettingsDialog
+      <SettingsDialog
+        projects={projects}
         open={caddySettingsOpen}
         onOpenChange={setCaddySettingsOpen}
         onSaved={() => {
           refreshCaddyStatus()
           refresh()
+          refreshSettings()
+          refreshHealth()
         }}
       />
     </div>
   )
+}
+
+function enabledProjectsForHealth(projects: Project[], settings: import("@/api").AppSettings) {
+  return projects.flatMap((project) => Object.entries(project.environments).filter(([name, env]) => healthCheckEnabled(settings, project, name, env)).map(([name]) => [project.name, name] as const))
 }

@@ -1,48 +1,22 @@
-<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="1024" height="1024" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Caddy Proxy Tools</title>
   <defs>
-    <linearGradient id="bg" x1="120" y1="96" x2="904" y2="928" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#24313F"/>
-      <stop offset="0.52" stop-color="#17212C"/>
-      <stop offset="1" stop-color="#0D131B"/>
+    <linearGradient id="surface" x1="8" y1="4" x2="56" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6"/>
+      <stop offset="0.52" stop-color="#6D4BE2"/>
+      <stop offset="1" stop-color="#5035BB"/>
     </linearGradient>
-    <linearGradient id="rim" x1="172" y1="134" x2="812" y2="845" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#F7FBFA"/>
-      <stop offset="1" stop-color="#C9D8D6"/>
+    <linearGradient id="edge" x1="12" y1="2" x2="52" y2="62" gradientUnits="userSpaceOnUse">
+      <stop stop-color="white" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="white" stop-opacity="0.04"/>
     </linearGradient>
-    <linearGradient id="cyanRoute" x1="440" y1="512" x2="748" y2="360" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#EAF8F5"/>
-      <stop offset="1" stop-color="#45D7C1"/>
-    </linearGradient>
-    <linearGradient id="amberRoute" x1="440" y1="512" x2="758" y2="668" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#F7F1DC"/>
-      <stop offset="1" stop-color="#F6B84C"/>
-    </linearGradient>
-    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#05080D" flood-opacity="0.36"/>
-    </filter>
   </defs>
-
-  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
-  <path d="M164 720C119 642 99 551 109 461C131 268 298 121 498 121C602 121 698 160 771 224" stroke="#2F4150" stroke-width="36" stroke-linecap="round" opacity="0.45"/>
-  <path d="M754 801C686 859 598 896 499 896C339 896 201 800 142 662" stroke="#0A1018" stroke-width="32" stroke-linecap="round" opacity="0.45"/>
-
-  <g filter="url(#softShadow)">
-    <path d="M690 249C636 206 569 181 497 181C320 181 177 324 177 501C177 678 320 821 497 821C576 821 648 792 704 745" stroke="#0B1119" stroke-width="158" stroke-linecap="round"/>
-    <path d="M690 249C636 206 569 181 497 181C320 181 177 324 177 501C177 678 320 821 497 821C576 821 648 792 704 745" stroke="url(#rim)" stroke-width="112" stroke-linecap="round"/>
-  </g>
-
-  <path d="M445 512C520 512 572 412 704 382" stroke="#0B1119" stroke-width="88" stroke-linecap="round"/>
-  <path d="M445 512C520 512 572 412 704 382" stroke="url(#cyanRoute)" stroke-width="52" stroke-linecap="round"/>
-  <path d="M445 512C524 512 581 622 721 655" stroke="#0B1119" stroke-width="88" stroke-linecap="round"/>
-  <path d="M445 512C524 512 581 622 721 655" stroke="url(#amberRoute)" stroke-width="52" stroke-linecap="round"/>
-
-  <circle cx="445" cy="512" r="72" fill="#0B1119"/>
-  <circle cx="445" cy="512" r="46" fill="#F4FAF8"/>
-  <circle cx="704" cy="382" r="76" fill="#0B1119"/>
-  <circle cx="704" cy="382" r="46" fill="#45D7C1"/>
-  <circle cx="721" cy="655" r="76" fill="#0B1119"/>
-  <circle cx="721" cy="655" r="46" fill="#F6B84C"/>
-
-  <path d="M299 306C346 251 413 224 492 224" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round" opacity="0.32"/>
-  <path d="M239 602C214 535 217 466 248 402" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" opacity="0.18"/>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#surface)"/>
+  <rect x="2.5" y="2.5" width="59" height="59" rx="15.5" stroke="url(#edge)"/>
+  <path d="M44.23 19.27A18 18 0 1 0 44.23 44.73" stroke="white" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M29 32H33C39 32 39 39 45 39H49" stroke="white" stroke-opacity="0.5" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M29 32H33C39 32 39 25 45 25H49" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+  <circle cx="29" cy="32" r="3.25" fill="white"/>
+  <circle cx="49" cy="25" r="3.25" fill="white"/>
+  <circle cx="49" cy="39" r="3.25" fill="#CFC2F8"/>
 </svg>

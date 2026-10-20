@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Caddy Proxy Tools · 示例预览</title></head>
+<body><div id="root"></div>
+<script type="module">
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import {Dashboard} from '/src/pages/Dashboard.tsx';
+import {AppToastProvider} from '/src/contexts/ToastContext.tsx';
+import {ThemeProvider} from '/src/contexts/ThemeContext.tsx';
+import {defaultSettings} from '/src/lib/settings.ts';
+import '/src/index.css';
+const environment = (addr,desc) => ({addr,desc,insecure_skip_verify:false,proxy:{},health:{}});
+const projects = [
+  {name:'storefront',desc:'商城前端与 API',listen:':8080',enabled:true,path_prefix:true,strip_prefix:true,current:'development',environments:{development:environment('http://127.0.0.1:3000','本地开发'),staging:environment('https://staging.example.com/api','预发布验证'),production:environment('https://api.example.com','生产环境')},proxy:{},health:{}},
+  {name:'billing-api',desc:'订单与账单服务',listen:':8080',enabled:true,path_prefix:true,strip_prefix:true,current:'staging',environments:{development:environment('http://127.0.0.1:4000','本地服务'),staging:environment('https://billing.example.com','预发布环境')},proxy:{},health:{}},
+  {name:'sandbox-tools',desc:'按需启用的调试项目',listen:':9090',enabled:false,path_prefix:false,strip_prefix:false,current:'local',environments:{local:environment('http://127.0.0.1:5000','本地调试')},proxy:{},health:{}}
+];
+const health = Object.fromEntries(projects.map(project=>[project.name,Object.fromEntries(Object.keys(project.environments).map(name=>[name,{healthy:true,last_check:'2026-10-20T08:30:00Z',latency_ms:12}]))]));
+const logs = [
+  {id:1,timestamp:'2026-10-20T08:30:00Z',level:'INFO',category:'system',message:'Caddy 已启动，2 个项目的代理配置已生效'},
+  ...[
+    ['storefront','development','http://127.0.0.1:3000','GET','/storefront/api/products?page=1',200,0.023],
+    ['storefront','development','http://127.0.0.1:3000','POST','/storefront/api/cart',201,0.046],
+    ['billing-api','staging','https://billing.example.com','GET','/billing-api/api/orders',200,0.184],
+    ['storefront','development','http://127.0.0.1:3000','GET','/storefront/assets/app.css',200,0.008],
+    ['billing-api','staging','https://billing.example.com','GET','/billing-api/api/invoices/preview',504,1.283],
+  ].map(([project,environment,backend,method,uri,status,duration],index)=>({id:index+2,timestamp:`2026-10-20T08:30:${String(index*4+2).padStart(2,'0')}Z`,level:status>=500?'ERROR':'INFO',category:'caddy',message:`${method} ${uri} ${status}`,data:{logger:'http.log.access.proxy',cpt_project:project,cpt_environment:environment,cpt_backend:backend,cpt_original_uri:uri,request:{method,uri,client_ip:'127.0.0.1'},status,duration}}))
+];
+let eventId=0;
+window.__TAURI_EVENT_PLUGIN_INTERNALS__={unregisterListener(){}};
+window.__TAURI_INTERNALS__={transformCallback:()=>++eventId,unregisterCallback(){},invoke:async command=>{
+  if(command==='plugin:event|listen')return ++eventId;
+  if(command==='plugin:event|unlisten')return null;
+  if(command==='list_projects')return structuredClone(projects);
+  if(command==='get_health_status')return structuredClone(health);
+  if(command==='get_caddy_status')return {running:true,managed:true,pid:1234,uptime_secs:7218,reachable:true};
+  if(command==='get_app_settings')return {admin:'localhost:2019',settings:structuredClone(defaultSettings),autostart_supported:true,backup_dir:'示例数据 / backups'};
+  if(command==='get_logs')return structuredClone(logs);
+  if(command==='get_proxy_status')return projects.map(p=>({name:p.name,listen:p.listen,enabled:p.enabled,current_env:p.current,backend_addr:p.environments[p.current].addr}));
+  if(command==='list_backups')return [];
+  throw new Error('示例预览不执行配置修改或系统操作');
+}};
+createRoot(document.getElementById('root')).render(React.createElement(ThemeProvider,null,React.createElement(AppToastProvider,null,React.createElement(Dashboard))));
+</script></body></html>

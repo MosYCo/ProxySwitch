@@ -2,60 +2,40 @@
 /**
  * Cross-platform Caddy sidecar downloader.
  * Pure JS extraction — no system tools required.
- * Skips download if the binary already exists.
+ * Verifies the pinned release and cached executable before use.
  *
  * Usage:
  *   node scripts/download-caddy.mjs [version] [platform]
  *
  * Options:
- *   version  - Caddy version, e.g. "2.9.1" (default: latest from GitHub API)
+ *   version  - must match scripts/caddy-release.json; omitted by default
  *   platform - linux | macos-arm | macos-intel | windows | all (default: auto-detect)
  */
 
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync, chmodSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync, renameSync, writeFileSync, chmodSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { join, dirname, basename, resolve } from "node:path";
 import { gunzipSync, createInflateRaw } from "node:zlib";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BIN_DIR = join(__dirname, "..", "src-tauri", "binaries");
 const BASE_URL = "https://github.com/caddyserver/caddy/releases/download";
-
-const TARGETS = {
-  linux:         { osArch: "linux_amd64",   archive: "tar.gz", name: "caddy-x86_64-unknown-linux-gnu" },
-  "macos-arm":   { osArch: "mac_arm64",     archive: "tar.gz", name: "caddy-aarch64-apple-darwin" },
-  "macos-intel": { osArch: "mac_amd64",     archive: "tar.gz", name: "caddy-x86_64-apple-darwin" },
-  windows:       { osArch: "windows_amd64", archive: "zip",    name: "caddy-x86_64-pc-windows-msvc.exe" },
-};
+export const pinnedRelease = JSON.parse(readFileSync(join(__dirname, "caddy-release.json"), "utf8"));
 
 // ── Helpers ──────────────────────────────────────────────
 
-function detectPlatform() {
+export function detectPlatform() {
   const p = process.platform;
   const a = process.arch;
   if (p === "linux")  return a === "arm64" ? null : "linux";
   if (p === "darwin") return a === "arm64" ? "macos-arm" : "macos-intel";
-  if (p === "win32")  return "windows";
+  if (p === "win32")  return a === "x64" ? "windows" : null;
   return null;
 }
 
-async function fetchJson(url) {
-  const res = await fetch(url, { headers: { "User-Agent": "caddy-proxy-tools" } });
-  if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`);
-  return res.json();
-}
-
-async function downloadFile(url, dest) {
-  const res = await fetch(url, { headers: { "User-Agent": "caddy-proxy-tools" } });
-  if (!res.ok) throw new Error(`HTTP ${res.status} downloading ${url}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  writeFileSync(dest, buf);
-  console.log(`  Downloaded ${(buf.length / 1024 / 1024).toFixed(1)} MB`);
-}
-
-async function getLatestVersion() {
-  const data = await fetchJson("https://api.github.com/repos/caddyserver/caddy/releases/latest");
-  return data.tag_name.replace(/^v/, "");
+export function verifyDigest(bytes, expected, algorithm = "sha256") {
+  if (createHash(algorithm).update(bytes).digest("hex") !== expected) throw new Error(`Caddy ${algorithm.toUpperCase()} checksum mismatch`);
 }
 
 // ── Pure-JS tar.gz extraction ────────────────────────────
@@ -191,25 +171,41 @@ export async function extractZip(archivePath, targetName) {
 
 // ── Main download + extract ──────────────────────────────
 
-async function downloadCaddy(version, osArch, archive, targetName) {
-  const ext = archive === "zip" ? ".zip" : ".tar.gz";
-  const url = `${BASE_URL}/v${version}/caddy_${version}_${osArch}${ext}`;
-  const tmpFile = join(BIN_DIR, `_tmp_caddy_${osArch}${ext}`);
-  const targetPath = join(BIN_DIR, targetName);
-
-  console.log(`Downloading Caddy v${version} for ${osArch}...`);
-  await downloadFile(url, tmpFile);
-
-  console.log(`Extracting to ${targetPath}...`);
-  const data = archive === "zip"
-    ? await extractZip(tmpFile, "caddy.exe")
-    : await extractTarGz(tmpFile, "caddy");
-
-  writeFileSync(targetPath, data);
-  chmodSync(targetPath, 0o755);
-  unlinkSync(tmpFile);
-
-  console.log(`Done: ${targetName}`);
+export async function ensureCaddy(platform, { release = pinnedRelease, directory = BIN_DIR, fetcher = fetch } = {}) {
+  const target = release.targets[platform];
+  if (!target) throw new Error(`Unknown or unsupported platform: ${platform}`);
+  if (!/^\d+\.\d+\.\d+$/.test(release.version) || [target.binary, target.archive].some((name) => !name || basename(name) !== name || /[\\/]/.test(name))) throw new Error("Invalid pinned Caddy release");
+  const targetPath = join(directory, target.binary);
+  if (existsSync(targetPath)) {
+    try {
+      verifyDigest(readFileSync(targetPath), target.binary_sha256);
+      console.log(`Verified cached Caddy ${release.version}: ${target.binary}`);
+      return targetPath;
+    } catch { console.log(`Replacing an unverified Caddy cache: ${target.binary}`); }
+  }
+  mkdirSync(directory, { recursive: true });
+  const temporary = join(directory, `.caddy-${randomUUID()}`);
+  const archivePath = `${temporary}.archive`;
+  const executablePath = `${temporary}.executable`;
+  try {
+    const url = `${BASE_URL}/v${release.version}/${target.archive}`;
+    const response = await fetcher(url, { headers: { "User-Agent": "caddy-proxy-tools" }, signal: AbortSignal.timeout(120000) });
+    if (!response.ok) throw new Error(`HTTP ${response.status} downloading ${target.archive}`);
+    const archive = Buffer.from(await response.arrayBuffer());
+    verifyDigest(archive, target.archive_sha512, "sha512");
+    verifyDigest(archive, target.archive_sha256);
+    writeFileSync(archivePath, archive, { flag: "wx" });
+    const executable = target.archive.endsWith(".zip") ? await extractZip(archivePath, "caddy.exe") : await extractTarGz(archivePath, "caddy");
+    verifyDigest(executable, target.binary_sha256);
+    writeFileSync(executablePath, executable, { flag: "wx", mode: 0o755 });
+    chmodSync(executablePath, 0o755);
+    renameSync(executablePath, targetPath);
+    console.log(`Verified and installed Caddy ${release.version}: ${target.binary}`);
+    return targetPath;
+  } finally {
+    rmSync(archivePath, { force: true });
+    rmSync(executablePath, { force: true });
+  }
 }
 
 // ── Entry point ──────────────────────────────────────────
@@ -218,36 +214,19 @@ async function main() {
   const argVersion = process.argv[2] || "";
   const argPlatform = process.argv[3] || "";
 
-  mkdirSync(BIN_DIR, { recursive: true });
-
-  const version = argVersion || await getLatestVersion();
-  if (!argVersion) console.log(`Latest version: v${version}`);
+  if (argVersion && argVersion.replace(/^v/, "") !== pinnedRelease.version) throw new Error(`This source tree pins Caddy ${pinnedRelease.version}; update scripts/caddy-release.json and third-party notices before changing versions`);
 
   const platforms = argPlatform
-    ? (argPlatform === "all" ? Object.keys(TARGETS) : [argPlatform])
+    ? (argPlatform === "all" ? Object.keys(pinnedRelease.targets) : [argPlatform])
     : [detectPlatform()];
 
   for (const plat of platforms) {
-    if (!plat || !TARGETS[plat]) {
-      console.error(`Unknown or unsupported platform: ${plat}`);
-      console.error(`Usage: node scripts/download-caddy.mjs [version] [linux|macos-arm|macos-intel|windows|all]`);
-      process.exit(1);
-    }
-
-    const t = TARGETS[plat];
-    const targetPath = join(BIN_DIR, t.name);
-
-    if (existsSync(targetPath)) {
-      console.log(`Already exists, skipping: ${t.name}`);
-      continue;
-    }
-
-    await downloadCaddy(version, t.osArch, t.archive, t.name);
+    await ensureCaddy(plat);
   }
 
   console.log(`\nAll done! Binaries in: ${BIN_DIR}`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  await main().catch((error) => { console.error(error.message); process.exitCode = 1; });
 }

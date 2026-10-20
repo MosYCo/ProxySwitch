@@ -1,79 +1,32 @@
 import { useEffect, useRef, useCallback, useState } from "react"
-import { listen, type UnlistenFn } from "@tauri-apps/api/event"
-
-interface WebSocketEvent {
-  type: string
-  data: unknown
-}
-
+import { listen } from "@tauri-apps/api/event"
+import { createEventSubscription } from "@/lib/eventSubscription"
+import { workspaceEventNames, type AppEventName } from "@/lib/appEvents"
+interface WebSocketEvent { type: string; data: unknown }
 type EventHandler = (event: WebSocketEvent) => void
 
-/**
- * useWebSocket - Tauri event adapter
- *
- * In the Tauri version, this uses Tauri's event system instead of WebSocket.
- * The API is kept compatible with the original for minimal code changes.
- */
 export function useWebSocket(_url: string) {
-  const [isConnected] = useState(true) // Tauri events are always "connected"
+  const [isConnected, setIsConnected] = useState(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
   const handlersRef = useRef<Map<string, Set<EventHandler>>>(new Map())
-  const unlistenFns = useRef<UnlistenFn[]>([])
-
-  useEffect(() => {
-    // Listen for all relevant events from the backend
-    const eventTypes = [
-      "environment.switched",
-      "proxy.restarted",
-      "health.changed",
-      "log.created",
-    ]
-
-    const setupListeners = async () => {
-      for (const eventType of eventTypes) {
-        const unlisten = await listen(eventType, (event) => {
-          const data: WebSocketEvent = {
-            type: eventType,
-            data: event.payload,
-          }
-
-          // Notify specific handlers
-          const handlers = handlersRef.current.get(eventType)
-          if (handlers) {
-            handlers.forEach((handler) => handler(data))
-          }
-
-          // Notify wildcard handlers
-          const wildcardHandlers = handlersRef.current.get("*")
-          if (wildcardHandlers) {
-            wildcardHandlers.forEach((handler) => handler(data))
-          }
-        })
-        unlistenFns.current.push(unlisten)
-      }
-    }
-
-    setupListeners()
-
-    return () => {
-      unlistenFns.current.forEach((unlisten) => unlisten())
-      unlistenFns.current = []
-    }
+  useEffect(() => createEventSubscription({
+    events: workspaceEventNames,
+    subscribe: (event, callback) => listen(event, (message) => callback(message.payload)),
+    onStatus: (connected) => { setIsConnected(connected); if (connected) setConnectionError(null) },
+    onError: (error) => {
+      setConnectionError(error instanceof Error ? error.message : String(error))
+      console.error("实时事件订阅失败，将自动重试:", error)
+    },
+    onEvent: (type, data) => {
+      for (const handler of handlersRef.current.get(type) || []) handler({ type, data })
+      for (const handler of handlersRef.current.get("*") || []) handler({ type, data })
+    },
+  }), [])
+  const on = useCallback((type: AppEventName | "*", handler: EventHandler) => {
+    if (!handlersRef.current.has(type)) handlersRef.current.set(type, new Set())
+    handlersRef.current.get(type)!.add(handler)
+    return () => { handlersRef.current.get(type)?.delete(handler) }
   }, [])
-
-  const on = useCallback((eventType: string, handler: EventHandler) => {
-    if (!handlersRef.current.has(eventType)) {
-      handlersRef.current.set(eventType, new Set())
-    }
-    handlersRef.current.get(eventType)!.add(handler)
-
-    return () => {
-      handlersRef.current.get(eventType)?.delete(handler)
-    }
-  }, [])
-
-  const off = useCallback((eventType: string, handler: EventHandler) => {
-    handlersRef.current.get(eventType)?.delete(handler)
-  }, [])
-
-  return { isConnected, on, off }
+  const off = useCallback((type: AppEventName | "*", handler: EventHandler) => { handlersRef.current.get(type)?.delete(handler) }, [])
+  return { isConnected, connectionError, on, off }
 }

@@ -123,7 +123,7 @@ function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <p
       data-slot="field-description"
-      className={cn("text-sm font-normal leading-normal text-muted-foreground", className)}
+      className={cn("text-xs font-normal leading-relaxed text-muted-foreground", className)}
       {...props}
     />
   )

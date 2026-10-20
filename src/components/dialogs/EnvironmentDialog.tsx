@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useRef, useState, type FormEvent } from "react"
 import { AlertCircle, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
-import type { Environment } from "@/api"
+import type { Environment, ProxyOptions } from "@/api"
+import { HealthEditor, ProxyEditor, type HealthEditorHandle, type ProxyEditorHandle } from "@/components/settings/ProxyEditor"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
@@ -14,6 +15,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { Disclosure } from "@/components/ui/disclosure"
 import {
   Dialog,
   DialogContent,
@@ -39,6 +41,8 @@ interface EnvironmentDialogProps {
   onOpenChange: (open: boolean) => void
   envName?: string | null
   environment?: Environment | null
+  isCurrent?: boolean
+  proxyDefaults?: ProxyOptions
   onSave: (name: string, env: Environment) => Promise<boolean> | boolean
   onDelete?: (name: string) => Promise<boolean> | boolean
 }
@@ -48,6 +52,8 @@ export function EnvironmentDialog({
   onOpenChange,
   envName,
   environment,
+  isCurrent = false,
+  proxyDefaults,
   onSave,
   onDelete,
 }: EnvironmentDialogProps) {
@@ -58,6 +64,10 @@ export function EnvironmentDialog({
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const proxyEditor = useRef<ProxyEditorHandle>(null)
+  const healthEditor = useRef<HealthEditorHandle>(null)
+  const errorBox = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (error) errorBox.current?.scrollIntoView({ block: "nearest" }) }, [error])
 
   const isEditing = !!envName
   const nameInvalid = error.includes("环境名称")
@@ -98,8 +108,12 @@ export function EnvironmentDialog({
 
     try {
       const url = new URL(formattedAddr)
-      if (!url.hostname) {
+      if (!url.hostname || !["http:", "https:"].includes(url.protocol)) {
         setError("地址格式不正确")
+        return
+      }
+      if (url.search || url.hash || url.username || url.password) {
+        setError("后端地址支持路径，但不能包含用户名、密码、查询参数或片段")
         return
       }
     } catch {
@@ -113,8 +127,12 @@ export function EnvironmentDialog({
         addr: formattedAddr,
         desc: desc.trim(),
         insecure_skip_verify: insecureSkipVerify,
+        proxy: proxyEditor.current?.read() || {},
+        health: healthEditor.current?.read() || {},
       })
       if (saved) onOpenChange(false)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error))
     } finally {
       setSaving(false)
     }
@@ -134,7 +152,7 @@ export function EnvironmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[460px]">
+      <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>{isEditing ? "编辑环境" : "添加环境"}</DialogTitle>
           <DialogDescription>
@@ -142,9 +160,9 @@ export function EnvironmentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        <form autoComplete="off" noValidate onSubmit={handleSubmit} className="flex flex-col gap-5">
           {error && (
-            <Alert variant="destructive">
+            <Alert ref={errorBox} variant="destructive">
               <AlertCircle className="size-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
@@ -210,6 +228,8 @@ export function EnvironmentDialog({
                 aria-label="跳过 HTTPS 证书校验"
               />
             </Field>
+            <Disclosure title="环境代理参数" disabled={saving || deleting}><fieldset disabled={saving || deleting} className="space-y-4"><p className="text-xs leading-5 text-muted-foreground">留空继承项目和全局默认，填写后仅对此环境生效。</p><ProxyEditor ref={proxyEditor} initialValue={environment?.proxy} inherited={proxyDefaults} /></fieldset></Disclosure>
+            <Disclosure title="环境健康检查" disabled={saving || deleting}><fieldset disabled={saving || deleting}><HealthEditor ref={healthEditor} initialValue={environment?.health} /></fieldset></Disclosure>
           </FieldGroup>
 
           <DialogFooter className="gap-2">
@@ -220,14 +240,15 @@ export function EnvironmentDialog({
                     type="button"
                     variant="destructive"
                     className="mr-auto"
-                    disabled={saving || deleting}
+                    disabled={saving || deleting || isCurrent}
+                    title={isCurrent ? "请先切换到其他环境再删除" : undefined}
                   >
                     {deleting ? (
                       <Loader2 className="animate-spin" data-icon="inline-start" />
                     ) : (
                       <Trash2 data-icon="inline-start" />
                     )}
-                    删除环境
+                    {isCurrent ? "当前环境不可删除" : "删除环境"}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>

@@ -1,0 +1,19 @@
+{
+  "projects": {
+    "demo-web": {
+      "name": "demo-web",
+      "desc": "示例 Web 项目",
+      "listen": ":8080",
+      "enabled": false,
+      "path_prefix": false,
+      "current": "development",
+      "environments": {
+        "development": {
+          "addr": "http://127.0.0.1:3000",
+          "desc": "本地开发服务",
+          "insecure_skip_verify": false
+        }
+      }
+    }
+  }
+}

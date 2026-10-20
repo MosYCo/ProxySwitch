@@ -201,13 +201,15 @@ dependencies = [
 
 [[package]]
 name = "caddy-proxy-tools"
-version = "2.0.1"
+version = "2.1.2"
 dependencies = [
  "anyhow",
  "chrono",
+ "native-tls",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "socket2",
  "tauri",
  "tauri-build",
  "tauri-plugin-shell",
@@ -218,6 +220,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

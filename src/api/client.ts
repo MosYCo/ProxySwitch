@@ -1,12 +1,16 @@
 import { invoke } from "@tauri-apps/api/core"
 import type {
   Project,
+  ProjectActivation,
   Environment,
   ProjectStatus,
   HealthStatus,
   LogEntry,
+  LogSource,
+  LogClearResult,
   CaddyStatus,
   CaddySettings,
+  AppSettings, SettingsView, ImportPreview, BackupInfo,
 } from "./types"
 
 // Project API
@@ -22,6 +26,9 @@ export const projectApi = {
     invoke<Project>("update_project", { name, project }),
 
   delete: (name: string) => invoke<void>("delete_project", { name }),
+
+  setEnabled: (name: string, enabled: boolean) =>
+    invoke<ProjectActivation>("set_project_enabled", { name, enabled }),
 }
 
 // Environment API
@@ -70,9 +77,20 @@ export const logApi = {
   getByCategory: (category: string) =>
     invoke<LogEntry[]>("get_logs_by_category", { category }),
 
-  getRecent: (limit: number = 100) => invoke<LogEntry[]>("get_logs", { limit }),
+  getRecent: (limit?: number) => invoke<LogEntry[]>("get_logs", { limit }),
 
-  clear: () => invoke<void>("clear_logs"),
+  clear: (source?: LogSource) => invoke<LogClearResult>("clear_logs", { source }),
+}
+
+export const settingsApi = {
+  get: () => invoke<SettingsView>("get_app_settings"),
+  update: (admin: string, settings: AppSettings) => invoke<boolean>("update_app_settings", { admin, settings }),
+  previewImport: (data: string) => invoke<ImportPreview>("preview_import", { data }),
+  importProjects: (data: string, replaceAll: boolean) => invoke<void>("import_projects", { data, replaceAll }),
+  exportProjects: (project: string | null) => invoke<string>("export_projects", { project }),
+  backups: () => invoke<BackupInfo[]>("list_backups"),
+  createBackup: () => invoke<string>("create_backup"),
+  restoreBackup: (id: string, includeSettings: boolean) => invoke<void>("restore_backup", { id, includeSettings }),
 }
 
 // Caddy API

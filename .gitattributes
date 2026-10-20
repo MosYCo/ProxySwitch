@@ -1,0 +1,12 @@
+* text=auto eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.mjs text eol=lf
+*.svg text eol=lf
+*.png binary
+*.ico binary
+*.icns binary
+*.p12 binary
+# Preserve whitespace in verbatim third-party license texts.
+licenses/** -whitespace

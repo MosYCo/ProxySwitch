@@ -4,152 +4,112 @@
 
 @layer base {
   :root {
-    /* Route Desk - light */
-    --background: 210 29% 98%;
-    --foreground: 217 24% 15%;
-
+    color-scheme: light;
+    --background: 240 20% 98%;
+    --foreground: 240 16% 16%;
     --card: 0 0% 100%;
-    --card-foreground: 217 24% 15%;
-
+    --card-foreground: 240 16% 16%;
     --popover: 0 0% 100%;
-    --popover-foreground: 217 24% 15%;
-
-    --primary: 166 83% 34%;
+    --popover-foreground: 240 16% 16%;
+    --primary: 253 72% 59%;
     --primary-foreground: 0 0% 100%;
-
-    --secondary: 210 25% 94%;
-    --secondary-foreground: 217 24% 22%;
-
-    --muted: 210 24% 94%;
-    --muted-foreground: 215 14% 43%;
-
-    --accent: 214 85% 96%;
-    --accent-foreground: 217 76% 36%;
-
-    --destructive: 0 72% 51%;
+    --secondary: 244 25% 95%;
+    --secondary-foreground: 243 17% 35%;
+    --muted: 240 14% 96%;
+    --muted-foreground: 240 5% 43%;
+    --accent: 252 80% 96%;
+    --accent-foreground: 253 65% 51%;
+    --destructive: 0 68% 51%;
     --destructive-foreground: 0 0% 100%;
-
-    --border: 214 20% 88%;
-    --input: 214 20% 88%;
-    --ring: 166 83% 34%;
-
-    --radius: 0.375rem;
-
-    --success: 166 83% 34%;
+    --success: 157 65% 34%;
     --success-foreground: 0 0% 100%;
-    --warning: 33 89% 46%;
+    --warning: 32 88% 41%;
     --warning-foreground: 0 0% 100%;
-    --info: 221 83% 53%;
+    --info: 216 75% 53%;
     --info-foreground: 0 0% 100%;
-    --grid-line: 215 24% 32%;
+    --border: 240 12% 91%;
+    --input: 240 12% 88%;
+    --ring: 253 72% 59%;
+    --sidebar: 0 0% 100%;
+    --radius: 0.75rem;
   }
 
   .dark {
-    /* Route Desk - dark */
-    --background: 215 28% 7%;
-    --foreground: 210 24% 92%;
-
-    --card: 214 24% 11%;
-    --card-foreground: 210 24% 92%;
-
-    --popover: 214 24% 11%;
-    --popover-foreground: 210 24% 92%;
-
-    --primary: 166 83% 43%;
-    --primary-foreground: 215 28% 7%;
-
-    --secondary: 214 20% 16%;
-    --secondary-foreground: 210 24% 88%;
-
-    --muted: 214 20% 15%;
-    --muted-foreground: 216 13% 64%;
-
-    --accent: 214 24% 18%;
-    --accent-foreground: 210 24% 92%;
-
-    --destructive: 0 68% 54%;
+    color-scheme: dark;
+    --background: 240 14% 9%;
+    --foreground: 240 14% 93%;
+    --card: 240 12% 12%;
+    --card-foreground: 240 14% 93%;
+    --popover: 240 11% 14%;
+    --popover-foreground: 240 14% 93%;
+    --primary: 253 88% 73%;
+    --primary-foreground: 250 30% 12%;
+    --secondary: 242 13% 19%;
+    --secondary-foreground: 240 13% 84%;
+    --muted: 240 10% 17%;
+    --muted-foreground: 240 7% 67%;
+    --accent: 253 25% 21%;
+    --accent-foreground: 253 95% 81%;
+    --destructive: 0 78% 67%;
     --destructive-foreground: 0 0% 100%;
-
-    --border: 214 18% 19%;
-    --input: 214 18% 19%;
-    --ring: 166 83% 43%;
-
-    --success: 166 83% 43%;
-    --success-foreground: 215 28% 7%;
-    --warning: 37 92% 52%;
-    --warning-foreground: 215 28% 7%;
-    --info: 217 91% 60%;
-    --info-foreground: 215 28% 7%;
-    --grid-line: 210 20% 90%;
+    --success: 157 57% 58%;
+    --success-foreground: 157 60% 10%;
+    --warning: 38 86% 64%;
+    --warning-foreground: 32 60% 12%;
+    --info: 216 88% 73%;
+    --info-foreground: 216 60% 12%;
+    --border: 240 10% 21%;
+    --input: 240 10% 25%;
+    --ring: 253 88% 73%;
+    --sidebar: 240 13% 11%;
   }
-}
 
-@layer base {
-  * {
-    @apply border-border;
-  }
+  * { @apply border-border; }
   body {
-    @apply bg-background text-foreground antialiased;
-    font-family: "Inter", system-ui, sans-serif;
+    @apply m-0 bg-background text-foreground antialiased;
+    font-family: "Inter", "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    font-size: 14px;
   }
-  h1, h2, h3, h4, h5, h6 {
-    font-family: "Space Grotesk", system-ui, sans-serif;
-  }
+  button, input { -webkit-tap-highlight-color: transparent; }
+  button { touch-action: manipulation; }
   code, .font-mono {
-    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+    font-size: 0.9em;
   }
+  ::selection { background: hsl(var(--primary) / 0.16); }
+  :focus-visible { outline-offset: 3px; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.22); border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.4); }
 }
 
 @layer components {
-  /* Route card with a restrained line accent. */
-  .card-geo {
-    @apply relative overflow-hidden rounded-md border bg-card;
-  }
-  .card-geo::before {
-    content: '';
-    @apply absolute left-0 top-0 h-[2px] w-8 bg-primary;
-  }
-
-  /* Data-heavy input style for ports, URLs, and logs. */
-  .input-terminal {
-    @apply border-border bg-muted font-mono text-sm;
-    @apply focus:border-primary focus:ring-1 focus:ring-primary/20;
-  }
-
-  /* Status indicator. */
-  .status-dot {
-    @apply relative inline-block size-2 rounded-full;
-  }
-  .status-dot.healthy {
-    @apply bg-success;
-  }
-  .status-dot.unhealthy {
-    @apply bg-destructive;
-  }
-
-  /* Switchboard grid: visible in dark, barely present in light. */
-  .bg-grid {
-    background-image:
-      linear-gradient(hsl(var(--grid-line) / 0.035) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--grid-line) / 0.035) 1px, transparent 1px);
-    background-size: 40px 40px;
-  }
-
-  .dark .bg-grid {
-    background-image:
-      linear-gradient(hsl(var(--grid-line) / 0.04) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--grid-line) / 0.04) 1px, transparent 1px);
-  }
+  .workspace-content { @apply mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-5 py-6 lg:px-8 xl:px-10; }
+  .section-label { @apply text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground; }
+  .sidebar-link { @apply flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring; }
+  .sidebar-link[data-active="true"] { @apply bg-accent text-accent-foreground; }
+  .surface { @apply rounded-xl border bg-card shadow-[0_2px_6px_-4px_hsl(var(--foreground)/0.08)]; }
+  .input-terminal { @apply border-input bg-muted/40 font-mono text-sm focus:border-primary; }
+  .route-connector { @apply relative h-px min-w-4 flex-1 bg-border; }
+  .route-connector::after { content: ""; @apply absolute -right-px -top-[3px] size-[7px] rotate-45 border-r border-t border-muted-foreground/50; }
+  .page-enter { animation: page-enter 220ms ease-out both; }
+  .number-input { -moz-appearance: textfield; appearance: textfield; }
+  .number-input::-webkit-inner-spin-button,
+  .number-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .ui-disclosure > summary::marker { content: ""; }
+  .ui-disclosure > summary::-webkit-details-marker { display: none; }
 }
 
-@layer utilities {
-  .scanline {
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      hsl(var(--foreground) / 0.04) 2px,
-      hsl(var(--foreground) / 0.04) 4px
-    );
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

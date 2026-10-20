@@ -35,7 +35,7 @@ export function ThemeToggle() {
         <Tooltip>
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8" aria-label="切换主题">
+              <Button variant="ghost" size="icon" className="size-8 text-muted-foreground" aria-label="切换主题">
                 <CurrentIcon data-icon="inline-start" />
               </Button>
             </DropdownMenuTrigger>

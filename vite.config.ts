@@ -18,6 +18,8 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
+    // Serve the shared icon as a file; the desktop CSP does not allow data: images.
+    assetsInlineLimit: (filePath) => filePath.endsWith("app-icon.svg") ? false : undefined,
     sourcemap: true,
     rollupOptions: {
       output: {
