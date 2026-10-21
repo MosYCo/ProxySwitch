@@ -1,3 +1,4 @@
+import { inputBehavior } from "@/lib/inputBehavior"
 import { useState, useEffect } from "react"
 import { Activity, Layers, Plus, Search, X } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -5,9 +6,14 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { EnvironmentCard } from "@/components/EnvironmentCard"
 import { LogViewer } from "@/components/LogViewer"
 import { WorkspaceHeader } from "@/components/WorkspaceHeader"
-import { Sidebar, type WorkspaceView } from "@/components/Sidebar"
+import { AppSidebar, type WorkspaceView } from "@/components/Sidebar"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Badge } from "@/components/ui/badge"
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useToastContext } from "@/contexts/ToastContext"
 import { StatsBar } from "@/components/StatsBar"
@@ -52,8 +58,13 @@ export function Dashboard() {
     try { return localStorage.getItem("caddy-desk:last-project") } catch { return null }
   })
   const [view, setView] = useState<WorkspaceView>("overview")
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    try { return localStorage.getItem("caddy-proxy-tools.sidebar-open") !== "false" } catch { return true }
+  })
+  useEffect(() => {
+    try { localStorage.setItem("caddy-proxy-tools.sidebar-open", String(sidebarOpen)) } catch { /* Layout preferences are optional. */ }
+  }, [sidebarOpen])
   const [logProject, setLogProject] = useState<string | null>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [envQuery, setEnvQuery] = useState("")
   const [envFilter, setEnvFilter] = useState<"all" | "active" | "unhealthy">("all")
   const { toast } = useToastContext()
@@ -301,8 +312,8 @@ export function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar
+    <TooltipProvider delayDuration={200}><SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen} className="bg-background">
+      <AppSidebar
         projects={projects}
         selectedProject={selectedProject}
         view={view}
@@ -316,12 +327,10 @@ export function Dashboard() {
         statusKnown={caddyStatus !== null}
         caddyAction={caddyAction}
         onCaddyAction={handleCaddyAction}
-        mobileOpen={sidebarOpen}
-        onMobileOpenChange={setSidebarOpen}
       />
-      <div className="min-w-0 md:pl-[224px]">
-        <WorkspaceHeader title={view === "overview" ? "项目总览" : view === "logs" ? "运行日志" : currentProject?.name || "项目配置"} isConnected={isConnected} syncError={connectionError} onRefresh={handleRefresh} refreshing={refreshing} onOpenSidebar={() => setSidebarOpen(true)} />
-        <main className="workspace-content">
+      <SidebarInset className="min-w-0">
+        <WorkspaceHeader title={view === "overview" ? "项目总览" : view === "logs" ? "运行日志" : currentProject?.name || "项目配置"} isConnected={isConnected} syncError={connectionError} onRefresh={handleRefresh} refreshing={refreshing} />
+        <div className="workspace-content">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">{view === "overview" ? "项目总览" : view === "logs" ? "运行日志" : "项目配置"}</h1>
@@ -389,21 +398,23 @@ export function Dashboard() {
                     <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{caddyStatus === null ? "正在确认引擎状态。" : !isCaddyActive ? "添加、编辑或切换环境前，请先启动 Caddy 引擎。" : currentProject.enabled ? "当前选择置顶，切换后立即更新此项目的转发目标。" : "项目已停用，选择环境后需启用项目才会转发请求。"}</p>
                   </div>
                   <div className="flex w-full items-center gap-2 sm:w-auto">
-                    <div className="relative min-w-0 flex-1 sm:w-[190px]">
-                      <Search className="pointer-events-none absolute left-3 top-3 size-3.5 text-muted-foreground/70" />
-                      <Input value={envQuery} onChange={(event) => setEnvQuery(event.target.value)} placeholder="搜索环境或地址…" aria-label="搜索环境或地址" className="h-9 pl-9 pr-8 text-xs" />
-                      {envQuery && <button className="absolute right-2 top-2 rounded p-0.5 text-muted-foreground hover:text-foreground" aria-label="清除环境搜索" onClick={() => setEnvQuery("")}><X className="size-3.5" /></button>}
-                    </div>
-                    <Button variant="outline" size="sm" className="h-9 shrink-0 bg-card" onClick={openAddEnv}><Plus className="size-3.5" />添加环境</Button>
+                    <InputGroup className="min-w-0 flex-1 sm:w-[190px]">
+                      <InputGroupInput {...inputBehavior} value={envQuery} onChange={(event) => setEnvQuery(event.target.value)} placeholder="搜索环境或地址…" aria-label="搜索环境或地址" />
+                      <InputGroupAddon><Search /></InputGroupAddon>
+                      {envQuery && <InputGroupAddon align="inline-end"><InputGroupButton size="icon-xs" aria-label="清除环境搜索" onClick={() => setEnvQuery("")}><X /></InputGroupButton></InputGroupAddon>}
+                    </InputGroup>
+                    <Button variant="outline" onClick={openAddEnv}><Plus />添加环境</Button>
                   </div>
                 </div>
-                <div className="mb-4 mt-4 flex flex-wrap items-center gap-x-5 border-b" role="group" aria-label="环境筛选">
+                <div className="my-4 flex flex-wrap items-center gap-3">
+                  <ToggleGroup type="single" variant="outline" value={envFilter} onValueChange={value => { if (value) setEnvFilter(value as typeof envFilter) }} aria-label="环境筛选">
                   {([{ value: "all", label: "全部环境", count: environments.length }, { value: "active", label: "当前选择", count: currentProject.environments[currentProject.current] ? 1 : 0 }, { value: "unhealthy", label: "连接异常", count: unhealthyCount }] as const).map((filter) => (
-                    <button key={filter.value} onClick={() => setEnvFilter(filter.value)} aria-pressed={envFilter === filter.value} className={cn("-mb-px border-b-2 px-0.5 py-3 text-xs transition-colors focus-visible:outline-primary", envFilter === filter.value ? "border-primary font-medium text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
-                      {filter.label}<span className={cn("ml-1.5 rounded px-1.5 py-0.5 text-[11px] tabular-nums", filter.value === "unhealthy" && filter.count > 0 ? "bg-destructive/10 text-destructive" : "bg-muted")}>{filter.count}</span>
-                    </button>
+                    <ToggleGroupItem key={filter.value} value={filter.value}>
+                      {filter.label}<Badge variant="secondary" className={cn("tabular-nums", filter.value === "unhealthy" && filter.count > 0 && "bg-destructive/10 text-destructive")}>{filter.count}</Badge>
+                    </ToggleGroupItem>
                   ))}
-                  {envQuery && <span className="ml-auto py-3 text-xs text-muted-foreground" role="status">找到 {filteredEnvironments.length} 个环境</span>}
+                  </ToggleGroup>
+                  {envQuery && <span className="ml-auto text-xs text-muted-foreground" role="status">找到 {filteredEnvironments.length} 个环境</span>}
                 </div>
                 <div className="grid items-stretch gap-4 min-[1100px]:grid-cols-2 min-[1600px]:grid-cols-3">
                   {filteredEnvironments.map(
@@ -427,12 +438,13 @@ export function Dashboard() {
                     )
                   )}
                 </div>
-                {filteredEnvironments.length === 0 && <div className="surface flex flex-col items-center border-dashed px-6 py-10 text-center">
-                  <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">{environments.length === 0 ? <Layers className="size-5" /> : <Search className="size-5" />}</div>
-                  <h3 className="text-sm font-medium">{environments.length === 0 ? "给项目添加第一个环境" : envFilter === "unhealthy" && !envQuery ? currentProject.enabled ? "当前没有连接异常的环境" : "项目已停用，健康检查已暂停" : "没有找到匹配的环境"}</h3>
-                  <p className="mt-2 text-xs text-muted-foreground">{environments.length === 0 ? "填写环境名称和后端地址，第一个环境会自动选中。" : envFilter === "unhealthy" && !envQuery ? "可在全部环境中查看每个后端的检查状态。" : "试试其他关键词，或清除筛选查看全部环境。"}</p>
-                  <Button variant="outline" size="sm" className="mt-5" onClick={environments.length === 0 ? openAddEnv : () => { setEnvQuery(""); setEnvFilter("all") }}>{environments.length === 0 ? "添加环境" : "查看全部环境"}</Button>
-                </div>}
+                {filteredEnvironments.length === 0 && <Empty className="border bg-card py-10">
+                  <EmptyHeader><EmptyMedia variant="icon">{environments.length === 0 ? <Layers /> : <Search />}</EmptyMedia>
+                    <EmptyTitle>{environments.length === 0 ? "给项目添加第一个环境" : envFilter === "unhealthy" && !envQuery ? currentProject.enabled ? "当前没有连接异常的环境" : "项目已停用，健康检查已暂停" : "没有找到匹配的环境"}</EmptyTitle>
+                    <EmptyDescription>{environments.length === 0 ? "填写环境名称和后端地址，第一个环境会自动选中。" : envFilter === "unhealthy" && !envQuery ? "可在全部环境中查看每个后端的检查状态。" : "试试其他关键词，或清除筛选查看全部环境。"}</EmptyDescription>
+                  </EmptyHeader>
+                  <Button variant="outline" onClick={environments.length === 0 ? openAddEnv : () => { setEnvQuery(""); setEnvFilter("all") }}>{environments.length === 0 ? "添加环境" : "查看全部环境"}</Button>
+                </Empty>}
               </section>
             )}
 
@@ -440,8 +452,8 @@ export function Dashboard() {
 
           {view === "logs" && <LogViewer settings={settings} caddyStatus={caddyStatus} projects={projects} healthStatuses={healthStatuses} isConnected={isConnected} syncError={connectionError} initialProject={logProject} onSelectProject={handleOpenProject} />}
           <footer className="flex flex-wrap items-center justify-between gap-2 pb-1 text-[10px] text-muted-foreground/70"><span>每一条线路，都清晰可见。</span><span>Powered by Caddy</span></footer>
-        </main>
-      </div>
+        </div>
+      </SidebarInset>
 
       {/* 项目对话框 */}
       <ProjectDialog
@@ -479,7 +491,7 @@ export function Dashboard() {
           refreshHealth()
         }}
       />
-    </div>
+    </SidebarProvider></TooltipProvider>
   )
 }
 

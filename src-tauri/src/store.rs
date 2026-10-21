@@ -190,6 +190,56 @@ mod tests {
         assert!(!reloaded.projects["paused"].enabled);
     }
     #[test]
+    fn custom_icons_survive_disk_reload_backups_and_project_export() {
+        let mut config = parse_config(r#"{"projects":{"demo":{"name":"demo","listen":":8080","current":"dev","environments":{"dev":{"addr":"http://127.0.0.1:3000"}}}}}"#).unwrap();
+        assert!(config.projects["demo"].icon.is_none());
+        assert!(config.projects["demo"].environments["dev"].icon.is_none());
+        let project = config.projects.get_mut("demo").unwrap();
+        project.icon = Some("shopping-bag".into());
+        project.environments.get_mut("dev").unwrap().icon = Some("emoji:🧪".into());
+
+        let directory = crate::test_support::Directory::new();
+        let file = directory.0.join("config.json");
+        let mut store = Store::new(file.to_str().unwrap()).unwrap();
+        store.replace_config(config.clone()).unwrap();
+        let reloaded = Store::new(file.to_str().unwrap()).unwrap();
+        assert_eq!(
+            reloaded.get_config().projects["demo"].icon.as_deref(),
+            Some("shopping-bag")
+        );
+        assert_eq!(
+            reloaded.get_config().projects["demo"].environments["dev"]
+                .icon
+                .as_deref(),
+            Some("emoji:🧪")
+        );
+
+        let exported = serde_json::json!({"version": 1, "projects": config.projects});
+        let imported = parse_config(&exported.to_string()).unwrap();
+        assert_eq!(
+            imported.projects["demo"].icon.as_deref(),
+            Some("shopping-bag")
+        );
+        assert_eq!(
+            imported.projects["demo"].environments["dev"]
+                .icon
+                .as_deref(),
+            Some("emoji:🧪")
+        );
+
+        store.replace_config(Config::default()).unwrap();
+        let backup = store.read_backup(&store.backup_ids().unwrap()[0]).unwrap();
+        assert_eq!(
+            backup.projects["demo"].icon.as_deref(),
+            Some("shopping-bag")
+        );
+        assert_eq!(
+            backup.projects["demo"].environments["dev"].icon.as_deref(),
+            Some("emoji:🧪")
+        );
+    }
+
+    #[test]
     fn backups_capture_previous_configuration_and_enforce_retention_and_safe_ids() {
         let directory = crate::test_support::Directory::new();
         let file = directory.0.join("config.json");

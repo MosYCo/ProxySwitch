@@ -1,5 +1,8 @@
-import { ArrowRight, Check, GitBranch, Info, Loader2, Pause, Pencil, Play, Plus, RefreshCw, ScrollText } from "lucide-react"
+import { Label } from "@/components/ui/label"
+import { ArrowRight, Check, Info, Loader2, Pause, Pencil, Play, Plus, RefreshCw, ScrollText } from "lucide-react"
+import { EntityIcon } from "@/components/EntityIcon"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { CopyButton } from "@/components/CopyButton"
@@ -40,14 +43,14 @@ export function ProjectToolbar({ project, onEditProject, onViewRequests, onResta
     : null
 
   return (
-    <section className="surface overflow-hidden" aria-label="当前项目">
+    <Card className="gap-0 overflow-hidden py-0" role="region" aria-label="当前项目">
       <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 xl:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-3.5">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-primary/10 bg-primary/5 text-primary"><GitBranch className="size-5" strokeWidth={1.7} /></div>
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-primary/10 bg-primary/5 text-primary"><EntityIcon value={project.icon} /></div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2.5">
               <h2 className="truncate text-[17px] font-semibold tracking-tight" title={project.name}>{project.name}</h2>
-              <Badge variant={running ? "success" : "secondary"} className="gap-1.5 text-[11px] font-normal"><span className={cn("size-1.5 rounded-full", running ? "bg-success" : "bg-muted-foreground")} />{statusText}</Badge>
+              <Badge variant={running ? "outline" : "secondary"} className={cn("gap-1.5 font-normal", running && "border-success/25 bg-success/10 text-success")}><span className={cn("size-1.5 rounded-full", running ? "bg-success" : "bg-muted-foreground")} />{statusText}</Badge>
             </div>
             <p className="mt-1 truncate text-xs text-muted-foreground">{project.desc || "管理这个项目的代理入口与后端环境"}</p>
           </div>
@@ -61,12 +64,12 @@ export function ProjectToolbar({ project, onEditProject, onViewRequests, onResta
         </div>
       </div>
       <div className="mx-5 mb-4 flex items-center justify-between gap-4 rounded-lg border bg-muted/25 px-4 py-3 xl:mx-6">
-        <label htmlFor="project-enabled" className="flex flex-1 cursor-pointer items-center gap-3">
+        <Label htmlFor="project-enabled" className="flex flex-1 cursor-pointer items-center gap-3">
           <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", project.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
             {changingEnabled ? <Loader2 className="size-4 animate-spin" /> : project.enabled ? <Check className="size-4" /> : <Pause className="size-4" />}
           </span>
           <span><span className="block text-[13px] font-medium">启用此项目</span><span id="project-enabled-hint" className="mt-0.5 block text-xs text-muted-foreground">{project.enabled ? "关闭后仅停用此项目，其他项目继续运行" : "开启后恢复此项目的代理与健康检查"}</span></span>
-        </label>
+        </Label>
         <Switch id="project-enabled" checked={project.enabled} onCheckedChange={onEnabledChange} disabled={busy} aria-describedby="project-enabled-hint" />
       </div>
       <div className="grid items-center gap-3 border-t bg-muted/20 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:px-6">
@@ -85,6 +88,6 @@ export function ProjectToolbar({ project, onEditProject, onViewRequests, onResta
         {statusKnown && !isCaddyActive && canStartCaddy && <Button size="sm" onClick={onStartCaddy} disabled={busy || startingCaddy}>{startingCaddy ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}{startingCaddy ? "正在启动" : "启动引擎"}</Button>}
         {isCaddyActive && state === "unconfigured" && <Button size="sm" onClick={hasEnvironments ? onChooseEnvironment : onAddEnvironment} disabled={busy}>{hasEnvironments ? <ArrowRight className="size-3.5" /> : <Plus className="size-3.5" />}{hasEnvironments ? "选择环境" : "添加第一个环境"}</Button>}
       </div>}
-    </section>
+    </Card>
   )
 }

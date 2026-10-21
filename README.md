@@ -35,6 +35,8 @@
 
 Windows 已完成本地运行验证；三端已通过 GitHub Actions 原生检查并生成安装包，macOS / Linux 仍需实际安装验证。macOS 构建目前使用 ad hoc 签名，尚未配置 Apple Developer ID 签名与公证。登录自启目前仅支持 Windows。
 
+当前源码的界面基于 React 19、Tailwind CSS 4 和官方 shadcn/ui。Windows 请保持 WebView2 更新；macOS 需要 Safari 16.4 同代及以后的系统 WebKit，Linux 需要相应的现代 WebKitGTK。基础组件的新增和升级见 [界面组件维护](docs/UI.md)。
+
 ## 快速上手
 
 1. 启动应用并创建项目，设置监听端口，例如 `8080`。

@@ -1,52 +1,20 @@
-import { useState, useCallback, useRef } from "react"
+import { useCallback } from "react"
+import { toast as sonnerToast } from "sonner"
 
 export interface Toast {
-  id: string
   title?: string
   description?: string
   variant?: "default" | "destructive" | "success" | "warning"
   duration?: number
 }
 
-let toastCount = 0
+export type ToastId = string | number
 
 export function useToast() {
-  const [toasts, setToasts] = useState<Toast[]>([])
-  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
-
-  const addToast = useCallback(
-    (toast: Omit<Toast, "id">) => {
-      const id = String(++toastCount)
-      const duration = toast.duration ?? 4000
-
-      setToasts((prev) => [...prev, { ...toast, id }])
-
-      if (duration > 0) {
-        const timer = setTimeout(() => {
-          setToasts((prev) => prev.filter((t) => t.id !== id))
-          timersRef.current.delete(id)
-        }, duration)
-        timersRef.current.set(id, timer)
-      }
-
-      return id
-    },
-    []
-  )
-
-  const dismiss = useCallback((id: string) => {
-    const timer = timersRef.current.get(id)
-    if (timer) {
-      clearTimeout(timer)
-      timersRef.current.delete(id)
-    }
-    setToasts((prev) => prev.filter((t) => t.id !== id))
+  const toast = useCallback(({ title, description, variant, duration }: Toast): ToastId => {
+    const notify = variant === "destructive" ? sonnerToast.error : variant === "success" ? sonnerToast.success : variant === "warning" ? sonnerToast.warning : sonnerToast
+    return notify(title || "通知", { description, duration })
   }, [])
-
-  const toast = useCallback(
-    (props: Omit<Toast, "id">) => addToast(props),
-    [addToast]
-  )
-
-  return { toasts, toast, dismiss }
+  const dismiss = useCallback((id: ToastId) => { sonnerToast.dismiss(id) }, [])
+  return { toast, dismiss }
 }

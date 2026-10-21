@@ -1,0 +1,99 @@
+@reference "../index.css";
+
+/* Application branding lives here; generated shadcn/ui sources stay untouched. */
+:root {
+  color-scheme: light;
+  --background: hsl(240 20% 98%);
+  --foreground: hsl(240 16% 16%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --primary: hsl(253 72% 59%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(244 25% 95%);
+  --secondary-foreground: hsl(243 17% 35%);
+  --muted: hsl(240 14% 96%);
+  --muted-foreground: hsl(240 5% 43%);
+  --accent: hsl(252 80% 96%);
+  --accent-foreground: hsl(253 65% 51%);
+  --destructive: hsl(0 68% 51%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --success: hsl(157 65% 34%);
+  --success-foreground: hsl(0 0% 100%);
+  --warning: hsl(32 88% 41%);
+  --warning-foreground: hsl(0 0% 100%);
+  --info: hsl(216 75% 53%);
+  --info-foreground: hsl(0 0% 100%);
+  --border: hsl(240 12% 91%);
+  --input: hsl(240 12% 88%);
+  --ring: var(--primary);
+  --sidebar: var(--card);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: hsl(240 14% 9%);
+  --foreground: hsl(240 14% 93%);
+  --card: hsl(240 12% 12%);
+  --card-foreground: var(--foreground);
+  --popover: hsl(240 11% 14%);
+  --popover-foreground: var(--foreground);
+  --primary: hsl(253 88% 73%);
+  --primary-foreground: hsl(250 30% 12%);
+  --secondary: hsl(242 13% 19%);
+  --secondary-foreground: hsl(240 13% 84%);
+  --muted: hsl(240 10% 17%);
+  --muted-foreground: hsl(240 7% 67%);
+  --accent: hsl(253 25% 21%);
+  --accent-foreground: hsl(253 95% 81%);
+  --destructive: hsl(0 78% 67%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --success: hsl(157 57% 58%);
+  --success-foreground: hsl(157 60% 10%);
+  --warning: hsl(38 86% 64%);
+  --warning-foreground: hsl(32 60% 12%);
+  --info: hsl(216 88% 73%);
+  --info-foreground: hsl(216 60% 12%);
+  --border: hsl(240 10% 21%);
+  --input: hsl(240 10% 25%);
+  --ring: var(--primary);
+  --sidebar: hsl(240 13% 11%);
+}
+
+@layer base {
+  body { @apply m-0 bg-background text-foreground antialiased; font-size: 14px; }
+  button, input { -webkit-tap-highlight-color: transparent; }
+  button { touch-action: manipulation; }
+  ::selection { background: color-mix(in oklch, var(--primary) 16%, transparent); }
+}
+
+@layer components {
+  .workspace-content { @apply mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-5 py-6 lg:px-8 xl:px-10; }
+  .section-label { @apply text-xs font-medium uppercase tracking-widest text-muted-foreground; }
+  .page-enter { animation: page-enter 220ms ease-out both; }
+  .number-input { -moz-appearance: textfield; appearance: textfield; }
+  .number-input::-webkit-inner-spin-button,
+  .number-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+}
+
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

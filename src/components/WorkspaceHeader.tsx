@@ -1,5 +1,7 @@
-import { ChevronRight, Home, Menu, RefreshCw } from "lucide-react"
+import { ChevronRight, Home, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
+import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { cn } from "@/lib/utils"
 
@@ -9,14 +11,16 @@ interface WorkspaceHeaderProps {
   syncError?: string | null
   onRefresh: () => void
   refreshing: boolean
-  onOpenSidebar: () => void
 }
 
-export function WorkspaceHeader({ title, isConnected, syncError, onRefresh, refreshing, onOpenSidebar }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ title, isConnected, syncError, onRefresh, refreshing }: WorkspaceHeaderProps) {
+  const { isMobile, open, openMobile } = useSidebar()
+  const expanded = isMobile ? openMobile : open
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-card/95 px-5 backdrop-blur-md lg:px-8 xl:px-10">
       <div className="flex min-w-0 items-center gap-3 text-xs">
-        <Button variant="ghost" size="icon" className="size-8 md:hidden" aria-label="打开导航" onClick={onOpenSidebar}><Menu className="size-4" /></Button>
+        <SidebarTrigger aria-label="切换导航" aria-expanded={expanded} aria-controls="workspace-navigation" title={`${expanded ? "收起" : "展开"}导航（Ctrl+B）`} />
+        <Separator orientation="vertical" className="h-4" />
         <Home className="hidden size-3.5 text-muted-foreground sm:block" />
         <span className="hidden text-muted-foreground sm:block">工作空间</span>
         <ChevronRight className="hidden size-3 text-muted-foreground/60 sm:block" />

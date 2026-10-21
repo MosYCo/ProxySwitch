@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { projectApi, envApi, proxyApi, healthApi } from "@/api"
 import type { Project, Environment, HealthStatus } from "@/api"
 import { useToastContext } from "@/contexts/ToastContext"
-import { errorMessage } from "@/lib/utils"
+import { errorMessage } from "@/lib/errors"
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([])

@@ -173,6 +173,7 @@ pub(crate) mod tests {
     use std::collections::HashMap;
     pub fn project(name: &str, prefix: bool, address: &str) -> Project {
         Project {
+            icon: None,
             proxy: Default::default(),
             health: Default::default(),
             route_prefix: None,
@@ -187,6 +188,7 @@ pub(crate) mod tests {
             environments: HashMap::from([(
                 "dev".into(),
                 Environment {
+                    icon: None,
                     proxy: Default::default(),
                     health: Default::default(),
                     addr: address.into(),
@@ -424,6 +426,7 @@ mod integration_tests {
                 "one".into(),
                 "stage".into(),
                 crate::model::Environment {
+                    icon: None,
                     proxy: Default::default(),
                     health: Default::default(),
                     addr: format!("http://{}/stage-api/", backend.address),
