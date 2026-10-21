@@ -7,6 +7,13 @@ export const digest = (bytes) => createHash('sha256').update(bytes).digest('hex'
 export const commonReleaseFiles = (version) => [`RELEASE_NOTES_${version}.md`, 'CHANGELOG.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_LICENSES.zip']
 export const safeReleaseName = (name) => name && !['.', '..'].includes(name) && basename(name) === name && !/[\\/\r\n\0]/.test(name)
 
+export function publicReleaseName(name) {
+  if (!safeReleaseName(name)) throw new Error(`Unsafe public release filename: ${name}`)
+  const normalized = name.replaceAll(' ', '.')
+  if (!/^[A-Za-z0-9_][A-Za-z0-9._-]*$/.test(normalized) || normalized.endsWith('.')) throw new Error(`Unsafe public release filename: ${name}`)
+  return normalized
+}
+
 export function isCurrentInstaller(name, version) {
   const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   return safeReleaseName(name) && new RegExp(`(?:^|[_-])${escaped}(?=[_-])`).test(name) && /\.(exe|msi|deb|rpm|AppImage|dmg|app\.tar\.gz)$/i.test(name)
