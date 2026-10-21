@@ -5,16 +5,26 @@ import { mkdtemp, mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile 
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { buildTargets } from '../scripts/ci-metadata.mjs'
-import { collectInstallers, commonReleaseFiles, isCurrentInstaller, validateInstallerKinds, writeChecksums } from '../scripts/release-artifacts.mjs'
+import { collectInstallers, commonReleaseFiles, isCurrentInstaller, publicReleaseName, validateInstallerKinds, writeChecksums } from '../scripts/release-artifacts.mjs'
 import { mergeRelease } from '../scripts/merge-release.mjs'
 
 const version = '0.1.0'
 const installers = {
   'windows-x64': ['Moss ProxySwitch_0.1.0_x64-setup.exe', 'Moss ProxySwitch_0.1.0_x64_en-US.msi'],
-  'linux-x64': ['moss-proxy-switch_0.1.0_amd64.deb', 'moss-proxy-switch-0.1.0-1.x86_64.rpm', 'moss-proxy-switch_0.1.0_amd64.AppImage'],
+  'linux-x64': ['Moss ProxySwitch_0.1.0_amd64.deb', 'Moss ProxySwitch-0.1.0-1.x86_64.rpm', 'Moss ProxySwitch_0.1.0_amd64.AppImage'],
   'macos-arm64': ['Moss ProxySwitch_0.1.0_aarch64.dmg'],
   'macos-x64': ['Moss ProxySwitch_0.1.0_x64.dmg'],
 }
+
+const publishedInstallers = [
+  'Moss.ProxySwitch_0.1.0_x64-setup.exe',
+  'Moss.ProxySwitch_0.1.0_x64_en-US.msi',
+  'Moss.ProxySwitch_0.1.0_amd64.deb',
+  'Moss.ProxySwitch-0.1.0-1.x86_64.rpm',
+  'Moss.ProxySwitch_0.1.0_amd64.AppImage',
+  'Moss.ProxySwitch_0.1.0_aarch64.dmg',
+  'Moss.ProxySwitch_0.1.0_x64.dmg',
+]
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'proxyswitch-release-'))
@@ -36,6 +46,12 @@ test('installer names cover Windows, both macOS architectures, and Linux includi
   for (const name of ['Moss_0.1.01_x64.dmg', 'Moss_0.1.0.1_x64.exe', 'Moss_0.1.0_x64.exe.sig', 'moss-0.1.1-1.x86_64.rpm', '../Moss_0.1.0_x64.dmg', 'caddy.exe']) assert.equal(isCurrentInstaller(name, version), false, name)
 })
 
+test('public filenames match GitHub download names and reject characters GitHub would rename', () => {
+  assert.deepEqual(Object.values(installers).flat().map(publicReleaseName), publishedInstallers)
+  for (const name of commonReleaseFiles(version)) assert.equal(publicReleaseName(name), name)
+  for (const name of ['../outside.exe', '.hidden.exe', 'Moss#ProxySwitch.exe', 'Moss\tProxySwitch.exe', 'Moss.exe.']) assert.throws(() => publicReleaseName(name), /Unsafe public release filename/)
+})
+
 test('collection ignores stale bundles, other versions and unrelated executables', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'proxyswitch-collection-'))
   t.after(() => rm(root, { recursive: true, force: true }))
@@ -51,7 +67,7 @@ test('collection ignores stale bundles, other versions and unrelated executables
 test('publication preserves every installer and emits one complete SHA-256 manifest', async (t) => {
   const { input, output } = await fixture(t)
   const names = await mergeRelease(input, output, version)
-  const expected = [...Object.values(installers).flat(), ...commonReleaseFiles(version)].sort()
+  const expected = [...publishedInstallers, ...commonReleaseFiles(version)].sort()
   assert.deepEqual(names, expected)
   assert.deepEqual((await readdir(output)).sort(), [...expected, 'SHA256SUMS.txt'].sort())
   const sums = (await readFile(join(output, 'SHA256SUMS.txt'), 'utf8')).trim().split('\n')
@@ -80,6 +96,12 @@ test('publication rejects incomplete, inconsistent, altered or ambiguous artifac
       const directory = join(input, 'macos-x64')
       await rename(join(directory, installers['macos-x64'][0]), join(directory, installers['macos-arm64'][0]))
       await writeChecksums(directory, [...commonReleaseFiles(version), ...installers['macos-arm64']])
+    }, /Duplicate installer name/],
+    ['filenames collide after GitHub normalization', async (input) => {
+      const directory = join(input, 'macos-x64')
+      const name = 'Moss.ProxySwitch_0.1.0_aarch64.dmg'
+      await rename(join(directory, installers['macos-x64'][0]), join(directory, name))
+      await writeChecksums(directory, [...commonReleaseFiles(version), name])
     }, /Duplicate installer name/],
     ['path traversal', async (input) => writeFile(join(input, 'windows-x64', 'SHA256SUMS.txt'), `${'0'.repeat(64)}  ../outside.txt\n`), /Invalid checksums/],
   ]

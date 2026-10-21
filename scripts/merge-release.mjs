@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { buildTargets } from './ci-metadata.mjs'
 import { prepareRelease, projectRoot } from './release-notes.mjs'
-import { assertEmptyDirectory, commonReleaseFiles, digest, isCurrentInstaller, safeReleaseName, validateInstallerKinds, writeChecksums } from './release-artifacts.mjs'
+import { assertEmptyDirectory, commonReleaseFiles, digest, isCurrentInstaller, publicReleaseName, safeReleaseName, validateInstallerKinds, writeChecksums } from './release-artifacts.mjs'
 
 export async function mergeRelease(input, output, version, targets = buildTargets) {
   await assertEmptyDirectory(output)
@@ -22,15 +22,16 @@ export async function mergeRelease(input, output, version, targets = buildTarget
       names.add(name)
       const source = join(directory, name)
       if (digest(await readFile(source)) !== hash) throw new Error(`Checksum mismatch: ${target.id}/${name}`)
+      const outputName = publicReleaseName(name)
       if (shared.includes(name)) {
-        if (files.has(name) && files.get(name).hash !== hash) throw new Error(`Common release file differs: ${name}`)
+        if (files.has(outputName) && files.get(outputName).hash !== hash) throw new Error(`Common release file differs: ${name}`)
       } else {
         if (!isCurrentInstaller(name, version)) throw new Error(`Unexpected release file: ${name}`)
-        const key = name.toLowerCase()
+        const key = outputName.toLowerCase()
         if (installerNames.has(key)) throw new Error(`Duplicate installer name: ${name}`)
         installerNames.add(key)
       }
-      files.set(name, { source, hash })
+      files.set(outputName, { source, hash })
     }
     const listed = await readdir(directory, { withFileTypes: true })
     if (listed.length !== names.size + 1 || listed.some((entry) => !entry.isFile() || entry.name !== 'SHA256SUMS.txt' && !names.has(entry.name))) throw new Error(`Unlisted release files: ${target.id}`)

@@ -33,7 +33,7 @@
 | macOS 11 及以上 | Apple Silicon（ARM64） | DMG |
 | macOS 11 及以上 | Intel（x64） | DMG |
 
-Windows 已完成本地运行验证；新增 macOS / Linux 流程仍需 GitHub runner 首次构建和安装验证。macOS 构建目前使用 ad hoc 签名，尚未配置 Apple Developer ID 签名与公证。登录自启目前仅支持 Windows。
+Windows 已完成本地运行验证；三端已通过 GitHub Actions 原生检查并生成安装包，macOS / Linux 仍需实际安装验证。macOS 构建目前使用 ad hoc 签名，尚未配置 Apple Developer ID 签名与公证。登录自启目前仅支持 Windows。
 
 ## 快速上手
 
