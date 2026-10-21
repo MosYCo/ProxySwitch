@@ -162,7 +162,7 @@ pub async fn export_projects(
         .map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let path = dir.join(format!(
-        "caddy-projects-{}-{}.json",
+        "moss-proxyswitch-projects-{}-{}.json",
         chrono::Local::now().format("%Y%m%d-%H%M%S"),
         &uuid::Uuid::new_v4().to_string()[..8]
     ));
@@ -231,6 +231,7 @@ pub async fn restore_backup(
 fn set_launch_at_login(enabled: bool) -> anyhow::Result<()> {
     use std::os::windows::process::CommandExt;
     const KEY: &str = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    // Keep the legacy value so upgrades update or remove the existing startup entry.
     let mut command = std::process::Command::new("reg.exe");
     command.creation_flags(0x08000000);
     if enabled {

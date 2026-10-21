@@ -1,10 +1,14 @@
-<p align="center"><img src="src-tauri/icons/app-icon.svg" width="84" alt="Caddy Proxy Tools" /></p>
+<p align="center"><img src="src-tauri/icons/app-icon.svg" width="84" alt="Moss ProxySwitch" /></p>
 
-# Caddy Proxy Tools
+# Moss ProxySwitch
 
-面向本地开发的 Caddy 反向代理桌面工具。用固定入口连接不同后端，按项目切换环境，并直接查看请求、代理状态和引擎日志。界面中的工作空间也称为 Caddy Desk。
+**固定入口，随时切换后端环境。**
+
+面向前端开发的本地代理与环境切换工具。前端始终访问同一个代理入口，在开发、测试、预发布和生产等后端环境之间快速切换，无需修改前端地址或重启开发服务，并可直接查看请求、代理状态和引擎日志。当前版本使用 Caddy 作为代理引擎。
 
 [下载 Windows 安装包](../../releases/latest) · [使用说明](docs/USAGE.md) · [更新日志](CHANGELOG.md) · [参与贡献](CONTRIBUTING.md)
+
+首次开源版本为 **v0.1.0**。
 
 ![项目总览](docs/screenshots/overview.png)
 
@@ -20,7 +24,16 @@
 
 ## 安装与支持范围
 
-当前验证并发布 **Windows x64** 的 EXE 与 MSI 安装包，请在 [Releases](../../releases/latest) 下载，并按需核对同页的 `SHA256SUMS.txt`。macOS / Linux 的源码与资源尚未经过完整安装验证，暂不提供支持承诺。
+自动发布配置覆盖以下平台，可用安装包以 [Releases](../../releases/latest) 的实际附件为准，并可通过同页的 `SHA256SUMS.txt` 核对文件。
+
+| 平台 | 架构 | 安装包 |
+| --- | --- | --- |
+| Windows | x64 | EXE、MSI |
+| Linux | x64 | AppImage、DEB、RPM |
+| macOS 11 及以上 | Apple Silicon（ARM64） | DMG |
+| macOS 11 及以上 | Intel（x64） | DMG |
+
+Windows 已完成本地运行验证；新增 macOS / Linux 流程仍需 GitHub runner 首次构建和安装验证。macOS 构建目前使用 ad hoc 签名，尚未配置 Apple Developer ID 签名与公证。登录自启目前仅支持 Windows。
 
 ## 快速上手
 
@@ -28,6 +41,8 @@
 2. 添加环境，将后端填为已运行服务的地址，例如 `http://127.0.0.1:3000`。
 3. 启用项目并启动 Caddy，使用界面显示的完整代理入口访问服务。
 4. 在项目中切换环境，或到「运行日志 → 请求记录」查看请求转发结果。
+
+切换后新请求使用所选环境；已有的 WebSocket、SSE 等长连接需要重连才会进入新环境。
 
 共用端口时，为所有相关项目开启路径前缀。也可以从「设置 → 数据与备份」导入 [示例项目](examples/projects.json)；示例默认停用，配置好本地服务后再启用。
 
@@ -64,9 +79,9 @@ cargo test --locked --manifest-path src-tauri/Cargo.toml
 pnpm tauri:build
 ```
 
-打包前会检查版本和更新日志，生成依赖许可声明；产物整理到 `artifacts/<版本>/`，包含安装包、中文更新日志、许可证及 SHA-256 文件。已有发布目录不会被覆盖。
+打包前会检查版本和更新日志，生成依赖许可声明；产物整理到 `artifacts/<版本>/<平台>/`，包含安装包、中文更新日志、许可证及 SHA-256 文件。已有平台发布目录不会被覆盖。
 
-GitHub Actions 在提交和 PR 上运行检查，推送与应用版本一致的 `v<版本>` 标签时构建并发布 Windows 安装包。首次公开的操作和仓库设置见 [开源发布说明](docs/OPEN_SOURCE.md)。
+GitHub Actions 在提交和 PR 上运行四个目标的原生检查，推送与应用版本一致的 `v<版本>` 标签时构建三端安装包。所有目标成功并通过产物完整性校验后，汇总发布安装包、更新日志、许可证和统一的 SHA-256 文件。首次公开的操作和仓库设置见 [开源发布说明](docs/OPEN_SOURCE.md)。
 
 ## 贡献与许可证
 

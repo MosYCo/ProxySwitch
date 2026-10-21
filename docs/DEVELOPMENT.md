@@ -1,10 +1,20 @@
 # 开发与可复现构建
 
+## 应用名称与升级兼容
+
+对外名称为 **Moss ProxySwitch**，副标题为「固定入口，随时切换后端环境」；当前支持的代理引擎为 Caddy。窗口、托盘和发布说明使用 `src-tauri/tauri.conf.json` 的 `productName`，侧栏同步该名称。
+
+应用标识 `com.caddy-proxy-tools.desktop`、Rust 包与可执行文件名 `caddy-proxy-tools`、主题存储键及 Windows 自启注册表值保留兼容名称，确保升级后继续读取已有配置并管理原自启项。不要仅为统一品牌替换这些内部标识。GitHub 仓库与前端包名使用 `moss-proxyswitch`。
+
+## 版本约定
+
+公开版本从 `0.1.0` 开始：`0.1.x` 用于修复问题，`0.2.0` 等次版本用于新增功能或较大调整；核心功能和配置兼容策略稳定后再发布 `1.0.0`。
+
 ## 固定工具链
 
 Node.js 24.18.0、pnpm 11.10.0、Rust 1.96.1 分别由 `.node-version`、`package.json` 和 `rust-toolchain.toml` 固定。请提交 `pnpm-lock.yaml` 和 `src-tauri/Cargo.lock`，不要通过删除锁文件处理构建错误。
 
-Windows 需要 Visual Studio C++ Build Tools 与 WebView2，详见 [Tauri 环境准备](https://v2.tauri.app/start/prerequisites/)。当前 CI 和安装验证覆盖 Windows x64。其他平台可以尝试源码构建，但暂不承诺安装包可用性。
+Windows 需要 Visual Studio C++ Build Tools 与 WebView2；macOS 需要 Xcode Command Line Tools；Linux 需要 WebKitGTK 4.1、GTK、OpenSSL、AppIndicator 等开发库，详见 [Tauri 环境准备](https://v2.tauri.app/start/prerequisites/)。CI 的 Ubuntu 安装命令见 [公共构建准备](../.github/actions/setup-build/action.yml)。Windows 已完成本地运行验证，macOS / Linux 仍需首次 runner 构建和安装验证。
 
 ```sh
 pnpm install --frozen-lockfile
@@ -24,6 +34,8 @@ cargo fmt --manifest-path src-tauri/Cargo.toml --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
 pnpm licenses:generate
 ```
+
+依赖许可清单覆盖锁文件中的所有平台，包括构建与测试依赖，不按当前主机裁剪。四个平台生成同一份 `licenses/DEPENDENCIES.txt`，CI 重新生成后检查与提交文件一致。
 
 Rust 测试在临时目录和随机回环端口运行，使用当前平台的真实 Caddy sidecar。TLS 测试的公开身份见 `tests/fixtures/README.md`。
 
@@ -48,6 +60,23 @@ Rust 测试在临时目录和随机回环端口运行，使用当前平台的真
 
 ## 发布
 
-先将实际变更整理成带日期的版本条目，同步四处应用版本，再运行 `pnpm tauri:build`。发布脚本将安装包、更新日志、主许可证、第三方声明和许可证压缩包整理到 `artifacts/<版本>/`，并生成校验文件。旧版本目录保留。
+先将实际变更整理成带日期的版本条目，同步四处应用版本，再运行 `pnpm tauri:build`。默认选择当前主机对应的目标和安装包格式；可用 `--target` 与 `--bundles` 显式指定。构建始终向 Cargo 传入 `--locked`。
 
-GitHub 上推送 `v<版本>` 标签后，Release 工作流会先复用完整 CI，再构建 Windows 安装包。只有标签与代码版本一致、更新日志完整、所有检查通过时才发布附件。普通提交不会生成安装包。
+发布脚本将安装包、更新日志、主许可证、第三方声明和许可证压缩包整理到 `artifacts/<版本>/<平台>/`，并生成校验文件。同一版本可分别保存多个平台；已有平台目录和旧格式的版本产物不会被覆盖。RPM 的连字符版本命名也会被正确收集，缺少任一指定格式时直接失败。
+
+## CI 与标签发布
+
+CI 和 Release 共用 [构建目标清单](../.github/build-targets.json)，在各平台原生运行，避免误用变化中的 `macos-latest` 架构。
+
+| 平台标识 | GitHub runner | Rust 目标 | 格式 |
+| --- | --- | --- | --- |
+| windows-x64 | windows-2022 | x86_64-pc-windows-msvc | EXE、MSI |
+| linux-x64 | ubuntu-22.04 | x86_64-unknown-linux-gnu | AppImage、DEB、RPM |
+| macos-arm64 | macos-15 | aarch64-apple-darwin | DMG |
+| macos-x64 | macos-15-intel | x86_64-apple-darwin | DMG |
+
+每个目标检查 runner 架构与 Caddy sidecar 是否匹配，运行前端测试与构建、Rust 格式检查、真实 Caddy 回归测试和许可证一致性检查。Linux 测试通过 Xvfb 运行。分支保护可要求汇总检查 `Checks passed` 成功。
+
+推送 `v<版本>` 标签后，Release 先复用完整 CI，再构建四个目标。各平台上传独立目录，汇总脚本检查目标与格式是否齐全、逐项校验哈希、核对公共许可文件与更新说明是否一致，并拒绝同名安装包，最后生成覆盖所有附件的 `SHA256SUMS.txt`。单个平台失败时不会发布残缺的 Release；已存在的 Release 附件不覆盖。普通提交只运行检查，不生成安装包。
+
+macOS 最低版本设为 11.0，当前 CI 使用 ad hoc 签名，不依赖 Apple 开发者凭据，也没有进行 Apple 公证。正式分发的 Developer ID 签名与公证需另行配置；当前工作流尚未在 GitHub 实际运行，不能以静态配置检查替代各平台安装验证。

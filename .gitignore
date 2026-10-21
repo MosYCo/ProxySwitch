@@ -5,6 +5,8 @@ node_modules/
 # Build outputs
 dist/
 artifacts/
+# Local development history; public release notes start at 0.1.0.
+/docs/history/
 src-tauri/target/
 src-tauri/gen/
 

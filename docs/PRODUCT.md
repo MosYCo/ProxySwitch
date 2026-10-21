@@ -1,8 +1,8 @@
-# Caddy Proxy Tools - 产品文档
+# Moss ProxySwitch - 产品文档
 
 ## 1. 产品概述
 
-**Caddy Proxy Tools** 是一个桌面端反向代理管理工具，基于 Tauri 2 + React + Rust 构建，内置 Caddy 作为代理引擎。
+**Moss ProxySwitch** 是面向前端开发的桌面端本地代理与环境切换工具。前端配置一个固定代理入口后，即可在开发、测试、预发布和生产后端之间切换，无需修改前端地址或重启开发服务。产品基于 Tauri 2 + React + Rust 构建，当前内置 Caddy 作为代理引擎。
 
 ### 1.1 核心价值
 - **开箱即用**: 内置 Caddy 二进制，用户无需单独安装
@@ -332,7 +332,7 @@ struct LogEntry {
 **存储规则**:
 - 原子写入: 写入临时文件 → rename 替换
 - 读写锁: `tokio::sync::RwLock`
-- 配置路径: `~/.config/caddy-proxy-tools/config.json` (Tauri app data dir)
+- 配置路径: `~/.config/com.caddy-proxy-tools.desktop/config.json` (Tauri app config dir，保留旧应用标识以兼容升级)
 
 ### 5.3 Caddy 管理
 
@@ -523,7 +523,7 @@ struct LogEntry {
 
 ```
 ┌──────────────────────────┐
-│ Caddy Proxy Tools        │
+│ Moss ProxySwitch         │
 ├──────────────────────────┤
 │ ▶ 显示主窗口             │
 ├──────────────────────────┤
@@ -580,9 +580,9 @@ Caddy 发布的是压缩包（Linux/macOS 为 `.tar.gz`，Windows 为 `.zip`）�
 
 | 平台 | 路径 |
 |------|------|
-| Linux | `~/.config/caddy-proxy-tools/config.json` |
-| macOS | `~/Library/Application Support/caddy-proxy-tools/config.json` |
-| Windows | `%APPDATA%\caddy-proxy-tools\config.json` |
+| Linux | `~/.config/com.caddy-proxy-tools.desktop/config.json` |
+| macOS | `~/Library/Application Support/com.caddy-proxy-tools.desktop/config.json` |
+| Windows | `%APPDATA%\com.caddy-proxy-tools.desktop\config.json` |
 
 ---
 

@@ -171,7 +171,12 @@ fn main() {
             } else {
                 let mut tray_builder = TrayIconBuilder::with_id("main")
                     .menu(&tray_menu)
-                    .tooltip("Caddy Proxy Tools")
+                    .tooltip(
+                        app.config()
+                            .product_name
+                            .as_deref()
+                            .unwrap_or(env!("CARGO_PKG_NAME")),
+                    )
                     .show_menu_on_left_click(false)
                     .on_menu_event(|app, event| match event.id().as_ref() {
                         TRAY_SHOW_ID => show_main_window(app),

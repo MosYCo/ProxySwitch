@@ -1,10 +1,11 @@
 [package]
 name = "caddy-proxy-tools"
-version = "2.1.2"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.96"
 license = "MIT"
-description = "Caddy Proxy Tools - Desktop client for managing Caddy reverse proxy"
+description = "Moss ProxySwitch - Local proxy and backend environment switcher"
+authors = ["Moss"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

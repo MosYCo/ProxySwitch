@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { cn } from "@/lib/utils"
 import { getProjectState, projectStateLabels } from "@/lib/projectState"
 import { version } from "../../package.json"
+import { productName } from "../../src-tauri/tauri.conf.json"
 
 const appIcon = new URL("../../src-tauri/icons/app-icon.svg", import.meta.url).href
 
@@ -45,9 +46,9 @@ export function Sidebar(props: SidebarProps) {
     <>
       <div className="flex h-[76px] shrink-0 items-center gap-3 px-6">
         <img src={appIcon} alt="" className="size-10 shrink-0" draggable={false} />
-        <div>
-          <div className="text-[16px] font-semibold tracking-tight">Caddy<span className="ml-1 font-normal text-muted-foreground">Desk</span></div>
-          <p className="mt-0.5 text-[10px] tracking-[0.08em] text-muted-foreground">PROXY WORKSPACE</p>
+        <div className="min-w-0" title={productName}>
+          <div className="whitespace-nowrap text-[14px] font-semibold tracking-tight">Moss<span className="ml-1 font-normal text-muted-foreground"> ProxySwitch</span></div>
+          <p className="mt-0.5 text-[10px] tracking-wide text-muted-foreground">固定入口 · 环境切换</p>
         </div>
       </div>
 
@@ -111,7 +112,7 @@ export function Sidebar(props: SidebarProps) {
           )}
         </div>
         <button className="sidebar-link mt-3" onClick={() => navigate(onSettings)}><Settings2 className="size-4" />设置<ChevronRight className="ml-auto size-3.5" /></button>
-        <p className="px-3 pt-3 text-[10px] tracking-wide text-muted-foreground/70">CADDY PROXY TOOLS <span className="float-right">v{version}</span></p>
+        <p className="flex items-center justify-between gap-2 px-3 pt-3 text-[10px] tracking-wide text-muted-foreground/70"><span>{productName.toUpperCase()}</span><span>v{version}</span></p>
       </div>
     </>
   )

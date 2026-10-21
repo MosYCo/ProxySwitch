@@ -6,14 +6,24 @@ on:
   pull_request:
   workflow_dispatch:
   workflow_call:
+    outputs:
+      matrix:
+        description: Validated native build matrix
+        value: ${{ jobs.plan.outputs.matrix }}
+      version:
+        description: Validated application version
+        value: ${{ jobs.plan.outputs.version }}
 
 permissions:
   contents: read
 
 jobs:
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 45
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.metadata.outputs.matrix }}
+      version: ${{ steps.metadata.outputs.version }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -21,20 +31,51 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .node-version
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-      - run: pnpm install --frozen-lockfile
-      - name: Install the repository Rust toolchain
-        run: rustup show active-toolchain
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Verify versions, release tag and build matrix
+        id: metadata
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: node scripts/ci-metadata.mjs
+      - run: node scripts/check-public-content.mjs --history
+  check:
+    name: Check (${{ matrix.id }})
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      BUILD_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup-build
         with:
-          workspaces: src-tauri -> target
-      - run: pnpm check:public
+          target: ${{ matrix.target }}
       - run: pnpm test
       - run: pnpm build
-      - run: pnpm download-caddy
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
-      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - name: Run Rust and real Caddy integration tests
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run --auto-servernum cargo test --locked --manifest-path src-tauri/Cargo.toml --target "$BUILD_TARGET"
+          else
+            cargo test --locked --manifest-path src-tauri/Cargo.toml --target "$BUILD_TARGET"
+          fi
       - name: Verify dependency notices
         run: |
           pnpm licenses:generate
           git diff --exit-code -- licenses/DEPENDENCIES.txt
+  status:
+    name: Checks passed
+    if: always()
+    needs: [plan, check]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          PLAN_RESULT: ${{ needs.plan.result }}
+          CHECK_RESULT: ${{ needs.check.result }}
+        run: test "$PLAN_RESULT" = success && test "$CHECK_RESULT" = success

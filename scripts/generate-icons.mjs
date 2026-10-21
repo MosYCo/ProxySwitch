@@ -20,7 +20,7 @@ function generate(source, output, sizes = []) {
 generate(join(icons, "app-icon.svg"), icons)
 copyFileSync(join(icons, "32x32.png"), join(icons, "tray-icon.png"))
 
-const temporary = mkdtempSync(join(tmpdir(), "caddy-proxy-tools-icons-"))
+const temporary = mkdtempSync(join(tmpdir(), "moss-proxyswitch-icons-"))
 try {
   generate(join(icons, "tray-template.svg"), temporary, [32])
   copyFileSync(join(temporary, "32x32.png"), join(icons, "tray-template.png"))

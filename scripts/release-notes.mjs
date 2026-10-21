@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 export const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
-export function extractRelease(changelog, version) {
+export function extractRelease(changelog, version, productName = 'Moss ProxySwitch') {
   const headings = [...changelog.matchAll(/^## \[([^\]]+)\] - (\d{4}-\d{2}-\d{2})\s*$/gm)]
   const matches = headings.filter((heading) => heading[1] === version)
   if (matches.length !== 1) throw new Error(`请在 CHANGELOG.md 中为 ${version} 添加唯一的「## [${version}] - YYYY-MM-DD」更新日志`)
@@ -15,7 +15,7 @@ export function extractRelease(changelog, version) {
   if (!/^[-*] \S.+$/m.test(body) || /待补充|TODO|TBD/i.test(body)) throw new Error(`${version} 的更新日志尚未完成，请描述本次实际变更`)
   const date = heading[2]
   if (Number.isNaN(Date.parse(`${date}T00:00:00Z`)) || new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date) throw new Error('更新日志日期无效')
-  return { version, date, markdown: `# Caddy Proxy Tools ${version}\n\n发布日期：${date}\n\n${body}\n` }
+  return { version, date, markdown: `# ${productName} ${version}\n\n发布日期：${date}\n\n${body}\n` }
 }
 
 export function validateVersions(packageJson, tauriJson, cargoToml, cargoLock) {
@@ -41,7 +41,7 @@ export async function prepareRelease(root = projectRoot, tag) {
   ])
   const version = validateVersions(packageJson, tauriJson, cargoToml, cargoLock)
   if (tag) validateReleaseTag(tag, version)
-  const release = extractRelease(changelog, version)
+  const release = extractRelease(changelog, version, tauriJson.productName)
   const directory = join(root, 'docs/releases')
   await mkdir(directory, { recursive: true })
   await writeFile(join(directory, `${version}.md`), release.markdown)

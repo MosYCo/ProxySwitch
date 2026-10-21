@@ -189,7 +189,7 @@ export async function ensureCaddy(platform, { release = pinnedRelease, directory
   const executablePath = `${temporary}.executable`;
   try {
     const url = `${BASE_URL}/v${release.version}/${target.archive}`;
-    const response = await fetcher(url, { headers: { "User-Agent": "caddy-proxy-tools" }, signal: AbortSignal.timeout(120000) });
+    const response = await fetcher(url, { headers: { "User-Agent": "moss-proxyswitch" }, signal: AbortSignal.timeout(120000) });
     if (!response.ok) throw new Error(`HTTP ${response.status} downloading ${target.archive}`);
     const archive = Buffer.from(await response.arrayBuffer());
     verifyDigest(archive, target.archive_sha512, "sha512");

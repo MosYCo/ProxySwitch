@@ -1,10 +1,10 @@
 # 第三方软件声明
 
-Caddy Proxy Tools 的原创代码与图标采用根目录的 MIT 许可证。第三方软件保留各自的版权和许可证，不因本项目的许可证而改变。
+Moss ProxySwitch 的原创代码与图标采用根目录的 MIT 许可证。第三方软件保留各自的版权和许可证，不因本项目的许可证而改变。
 
 ## Caddy
 
-本应用随安装包分发未修改的 Caddy 官方二进制，固定版本为 **2.11.4**。Caddy 由 Matthew Holt 和 Caddy contributors 开发，采用 Apache License 2.0。
+本应用随安装包分发 Caddy 官方程序，固定版本为 **2.11.4**，未修改其源码。macOS 打包时会为嵌入的程序添加构建签名。Caddy 由 Matthew Holt 和 Caddy contributors 开发，采用 Apache License 2.0。
 
 - 上游项目与对应源码：https://github.com/caddyserver/caddy/tree/v2.11.4
 - 完整许可证：`licenses/Caddy-LICENSE.txt`
@@ -14,7 +14,7 @@ Caddy Proxy Tools 的原创代码与图标采用根目录的 MIT 许可证。第
 
 ## 界面与桌面运行时
 
-项目使用 React、Radix UI、Tailwind CSS、Lucide 和 Tauri 等开源软件。界面组件部分基于 shadcn/ui，其 MIT 版权声明单独保存在 `licenses/shadcn-ui-LICENSE.txt`。其余生产 npm 依赖和当前平台的 Cargo 依赖完整声明、来源及许可文本见 `licenses/DEPENDENCIES.txt`。
+项目使用 React、Radix UI、Tailwind CSS、Lucide 和 Tauri 等开源软件。界面组件部分基于 shadcn/ui，其 MIT 版权声明单独保存在 `licenses/shadcn-ui-LICENSE.txt`。其余生产 npm 依赖和锁文件中所有平台的 Cargo 依赖完整声明、来源及许可文本见 `licenses/DEPENDENCIES.txt`。
 
 部分 Rust 依赖采用 MPL-2.0；对应版本的源码可通过报告中的 crates.io 地址获取，也可以使用 `cargo vendor --locked` 下载。本项目没有修改这些依赖的源码。依赖维护者的版权和源码许可仍然适用。
 
