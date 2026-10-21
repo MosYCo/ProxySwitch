@@ -45,13 +45,27 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/caddy"],
+    "externalBin": [
+      "binaries/caddy"
+    ],
     "resources": {
       "../CHANGELOG.md": "CHANGELOG.md",
       "../docs/releases/RELEASE_NOTES.md": "RELEASE_NOTES.md",
       "../LICENSE": "LICENSE",
       "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
       "../licenses/": "licenses/"
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVBMzIzNjYxQzREMDMwRkYKUldUL01OREVZVFl5Nm1ManJLeG5VanBOUlBKUWxtNjFiYUlHUU9UcUNMaTBjY2ZvMWNFY3VCcCsK",
+      "endpoints": [
+        "https://github.com/MosYCo/ProxySwitch/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

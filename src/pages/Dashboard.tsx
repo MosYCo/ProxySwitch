@@ -23,6 +23,8 @@ import { EmptyState } from "@/components/EmptyState"
 import { ProjectDialog } from "@/components/dialogs/ProjectDialog"
 import { EnvironmentDialog } from "@/components/dialogs/EnvironmentDialog"
 import { SettingsDialog } from "@/components/dialogs/SettingsDialog"
+import { UpdateDialog } from "@/components/dialogs/UpdateDialog"
+import { useAppUpdater } from "@/hooks/useAppUpdater"
 import { useAppSettings } from "@/hooks/useAppSettings"
 import { healthCheckEnabled, resolveProxyOptions } from "@/lib/settings"
 import { useProjects } from "@/hooks/useProjects"
@@ -35,6 +37,7 @@ import { appEvents } from "@/lib/appEvents"
 import type { Project, Environment } from "@/api"
 
 export function Dashboard() {
+  const updater = useAppUpdater()
   const { settings, refresh: refreshSettings } = useAppSettings()
   const {
     projects,
@@ -321,6 +324,8 @@ export function Dashboard() {
         onSelectProject={handleOpenProject}
         onAddProject={openAddProject}
         onSettings={() => setCaddySettingsOpen(true)}
+        onUpdates={() => updater.setOpen(true)}
+        updateAvailable={!!updater.release}
         isCaddyActive={isCaddyActive}
         canManageCaddy={canManageCaddy}
         caddyManaged={caddyStatus?.managed}
@@ -491,6 +496,7 @@ export function Dashboard() {
           refreshHealth()
         }}
       />
+      <UpdateDialog updater={updater} editing={projectDialogOpen || envDialogOpen || caddySettingsOpen} />
     </SidebarProvider></TooltipProvider>
   )
 }

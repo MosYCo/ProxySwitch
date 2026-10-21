@@ -66,6 +66,8 @@ Rust 测试在临时目录和随机回环端口运行，使用当前平台的真
 
 ## CI 与标签发布
 
+应用内更新使用 Tauri 官方 updater 与 GitHub Release 的 `latest.json`。标签发布需要预先配置更新签名 Secrets，本地打包也需要相同私钥；普通 CI 不需要。密钥管理、平台范围和验证步骤见 [应用更新](UPDATING.md)。
+
 CI 和 Release 共用 [构建目标清单](../.github/build-targets.json)，在各平台原生运行，避免误用变化中的 `macos-latest` 架构。
 
 | 平台标识 | GitHub runner | Rust 目标 | 格式 |

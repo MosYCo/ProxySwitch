@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Box, LayoutDashboard, Loader2, PanelLeftClose, PanelLeftOpen, Play, Plus, RotateCw, Search, Settings2, Square, Terminal, X } from "lucide-react"
+import { Box, Download, LayoutDashboard, Loader2, PanelLeftClose, PanelLeftOpen, Play, Plus, RotateCw, Search, Settings2, Square, Terminal, X } from "lucide-react"
 import type { Project } from "@/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,6 +23,8 @@ interface SidebarProps {
   onSelectProject: (name: string) => void
   onAddProject: () => void
   onSettings: () => void
+  onUpdates: () => void
+  updateAvailable: boolean
   isCaddyActive: boolean
   canManageCaddy: boolean
   caddyManaged?: boolean
@@ -31,7 +33,7 @@ interface SidebarProps {
   onCaddyAction: (action: "start" | "stop" | "restart") => void
 }
 
-export function AppSidebar({ projects, selectedProject, view, onViewChange, onSelectProject, onAddProject, onSettings, isCaddyActive, canManageCaddy, caddyManaged, statusKnown, caddyAction, onCaddyAction }: SidebarProps) {
+export function AppSidebar({ projects, selectedProject, view, onViewChange, onSelectProject, onAddProject, onSettings, onUpdates, updateAvailable, isCaddyActive, canManageCaddy, caddyManaged, statusKnown, caddyAction, onCaddyAction }: SidebarProps) {
   const { isMobile, state, setOpenMobile, toggleSidebar } = useSidebar()
   const collapsed = !isMobile && state === "collapsed"
   const [query, setQuery] = useState("")
@@ -101,7 +103,7 @@ export function AppSidebar({ projects, selectedProject, view, onViewChange, onSe
           </div>}
         </CardContent>
       </Card>}
-      <SidebarMenu><SidebarMenuItem><SidebarMenuButton tooltip="设置" aria-label="设置" onClick={() => navigate(onSettings)}><Settings2 />{!collapsed && <span>设置</span>}</SidebarMenuButton></SidebarMenuItem></SidebarMenu>
+      <SidebarMenu><SidebarMenuItem><SidebarMenuButton tooltip={updateAvailable ? "应用更新 · 有新版本" : "应用更新"} aria-label={updateAvailable ? "应用更新，有新版本" : "应用更新"} onClick={() => navigate(onUpdates)}><Download className={updateAvailable ? "text-primary" : undefined} />{!collapsed && <span>应用更新</span>}{updateAvailable && <span className={cn("size-2 shrink-0 rounded-full bg-primary", collapsed ? "absolute right-1 top-1" : "ml-auto")} aria-hidden="true" />}</SidebarMenuButton></SidebarMenuItem><SidebarMenuItem><SidebarMenuButton tooltip="设置" aria-label="设置" onClick={() => navigate(onSettings)}><Settings2 />{!collapsed && <span>设置</span>}</SidebarMenuButton></SidebarMenuItem></SidebarMenu>
       {!collapsed && <p className="flex items-center justify-between px-2 py-1 text-[10px] text-muted-foreground"><span>{productName}</span><span>v{version}</span></p>}
     </SidebarFooter>
     <SidebarRail aria-label="切换导航边栏" title={collapsed ? "展开导航" : "收起导航"} />

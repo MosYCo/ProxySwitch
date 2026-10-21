@@ -37,6 +37,7 @@ window.__TAURI_INTERNALS__={transformCallback:()=>++eventId,unregisterCallback()
   if(command==='get_health_status')return structuredClone(health);
   if(command==='get_caddy_status')return {running:true,managed:true,pid:1234,uptime_secs:7218,reachable:true};
   if(command==='get_app_settings')return {admin:'localhost:2019',settings:structuredClone(defaultSettings),autostart_supported:true,backup_dir:'示例数据 / backups'};
+  if(command==='get_updater_status')return {current_version:'0.2.0',check_supported:false,install_supported:false,reason:'示例预览不检查或安装更新，请使用正式安装版。'};
   if(command==='get_logs')return structuredClone(logs);
   if(command==='get_proxy_status')return projects.map(p=>({name:p.name,listen:p.listen,enabled:p.enabled,current_env:p.current,backend_addr:p.environments[p.current].addr}));
   if(command==='list_backups')return [];
