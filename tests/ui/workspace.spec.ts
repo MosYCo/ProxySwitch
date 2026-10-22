@@ -1,5 +1,7 @@
 import { test as base, expect, type Page } from "@playwright/test"
+import { readFileSync } from "node:fs"
 import type { Environment, Project } from "../../src/api/types"
+import { defaultSettings } from "../../src/lib/settings"
 
 const test = base.extend<{ runtimeErrors: void }>({
   runtimeErrors: [async ({ page }, use) => {
@@ -37,6 +39,21 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/docs/preview.html")
   await expect(page.getByRole("heading", { name: "项目总览", exact: true })).toBeVisible()
   await expect(page.getByRole("button", { name: "配置项目 storefront", exact: true })).toBeVisible()
+})
+
+test("真实应用入口经路由加载工作台并支持重新加载", async ({ page }) => {
+  // Reuse sample IPC data while mounting App (including BrowserRouter) at /.
+  const preview = readFileSync("docs/preview.html", "utf8")
+  const mockStart = preview.indexOf("const environment =")
+  const mockEnd = preview.indexOf("createRoot(document.getElementById")
+  expect(mockStart).toBeGreaterThan(0)
+  expect(mockEnd).toBeGreaterThan(mockStart)
+  await page.addInitScript({ content: `const defaultSettings = ${JSON.stringify(defaultSettings)};\n${preview.slice(mockStart, mockEnd)}` })
+  await page.goto("/")
+  await expect(page.getByRole("heading", { name: "项目总览", exact: true })).toBeVisible()
+  await openProject(page)
+  await page.reload()
+  await expect(page.getByRole("heading", { name: "项目总览", exact: true })).toBeVisible()
 })
 
 test("项目导航、键盘筛选与搜索使用官方组件", async ({ page }) => {
