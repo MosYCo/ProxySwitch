@@ -27,6 +27,12 @@
 
 Dependabot 每周向 `develop` 提交 npm、Cargo 和 GitHub Actions 更新。同一生态的次版本与补丁更新按组提交，跨主版本升级独立审查；安全修复可随时生成。依赖变更需要重新生成许可证声明并通过完整 CI。
 
+默认分支为 `develop` 时，发布后 GitHub 可能提示 `master had recent pushes` 并显示 `Compare & pull request`。这是近期推送建议；发布 merge commit 会让 `master` 多一条合并记录，文件内容可能完全一致。先查看分支比较中的文件差异，不要为消除提示重写历史或重复创建发布 PR。
+
+依赖 PR 若只因 `Verify dependency notices` 失败，应检出更新分支，安装锁定依赖后执行 `pnpm licenses:generate` 并提交更新的 `licenses/DEPENDENCIES.txt`，再等待完整 CI；不要跳过许可证检查。可将相互关联的安全修复整合为一个维护 PR，验证合入后再关闭被替代的补丁 PR。
+
+`pnpm-workspace.yaml` 对 `minimatch@9.0.3` 的覆盖用于修复 `typescript-estree` 6 固定旧补丁版本引入的 ReDoS，保持 9.x API。上游解除该固定版本后，应复查并移除覆盖。已知暂不能兼容升级的依赖见 [安全说明](../SECURITY.md#已知上游依赖限制)。
+
 ## 固定工具链
 
 Node.js 24.18.0、pnpm 11.10.0、Rust 1.96.1 分别由 `.node-version`、`package.json` 和 `rust-toolchain.toml` 固定。请提交 `pnpm-lock.yaml` 和 `src-tauri/Cargo.lock`，不要通过删除锁文件处理构建错误。

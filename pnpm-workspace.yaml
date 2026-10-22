@@ -1,2 +1,6 @@
 allowBuilds:
   esbuild: true
+
+# typescript-estree 6 pins 9.0.3; keep the same major with the ReDoS fix.
+overrides:
+  minimatch@9.0.3: ^9.0.7
