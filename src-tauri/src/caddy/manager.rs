@@ -14,7 +14,7 @@ use serde_json::Value;
 pub struct CaddyProcess {
     pid: u32,
     started_at: Instant,
-    child: CommandChild,
+    child: Option<CommandChild>,
     alive: Arc<AtomicBool>,
     expected_exit: Arc<AtomicBool>,
 }
@@ -117,7 +117,7 @@ impl Manager {
         self.process = Some(CaddyProcess {
             pid,
             started_at: Instant::now(),
-            child,
+            child: Some(child),
             alive: alive.clone(),
             expected_exit,
         });
@@ -144,23 +144,18 @@ impl Manager {
     pub async fn stop(&mut self) -> Result<()> {
         self.desired_running = false;
         self.recovering = false;
-        if let Some(proc) = self.process.take() {
-            if proc.alive.load(Ordering::SeqCst) {
-                proc.expected_exit.store(true, Ordering::SeqCst);
-                // The child handle identifies our instance; no request goes to a default admin.
-                if let Err(error) = proc.child.kill() {
-                    proc.expected_exit.store(false, Ordering::SeqCst);
-                    return Err(anyhow::anyhow!("停止 Caddy 子进程失败: {}", error));
-                }
-            }
-            tracing::info!("Caddy stopped");
+        if let Some(process) = self.process.as_mut() {
+            stop_process(process, Duration::from_secs(10)).await?;
+            // Keep the PID/alive state on failure so an unsuccessful stop is
+            // never reported as stopped or followed by a second child process.
+            self.process = None;
+            tracing::info!("Caddy stopped and exit confirmed");
         }
         Ok(())
     }
 
     pub async fn restart(&mut self, logger: Arc<Logger>, config: &Config) -> Result<()> {
         self.stop().await?;
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         self.start(logger, config).await
     }
 
@@ -248,6 +243,34 @@ impl Manager {
             Err(error) => logger.error("system", &format!("Caddy 自动恢复失败: {:#}", error)),
         }
     }
+}
+
+async fn stop_process(process: &mut CaddyProcess, timeout: Duration) -> Result<()> {
+    if !process.alive.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+    process.expected_exit.store(true, Ordering::SeqCst);
+    // The child handle identifies our instance; never stop by process name or
+    // the configured admin port. kill() requests termination but does not wait.
+    if let Some(child) = process.child.take() {
+        if let Err(error) = child.kill() {
+            if process.alive.load(Ordering::SeqCst) {
+                process.expected_exit.store(false, Ordering::SeqCst);
+                anyhow::bail!("停止 Caddy 子进程失败（PID: {}）: {}", process.pid, error);
+            }
+        }
+    }
+    let deadline = tokio::time::Instant::now() + timeout;
+    while process.alive.load(Ordering::SeqCst) {
+        if tokio::time::Instant::now() >= deadline {
+            anyhow::bail!(
+                "等待 Caddy 子进程退出超时（PID: {}），尚未确认进程已结束",
+                process.pid
+            );
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    Ok(())
 }
 
 async fn wait_for_admin(
@@ -493,12 +516,88 @@ fn format_duration(seconds: f64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{caddy_log_level, format_caddy_log_message, wait_for_admin};
+    use super::{
+        caddy_log_level, format_caddy_log_message, stop_process, wait_for_admin, CaddyProcess,
+    };
     use crate::model::LogLevel;
     use serde_json::json;
     use std::sync::atomic::AtomicBool;
     use std::time::Duration;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[tokio::test]
+    async fn stopping_a_child_waits_for_termination_before_returning() {
+        use std::sync::{atomic::Ordering, Arc};
+        use tauri_plugin_shell::{process::CommandEvent, ShellExt};
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_shell::init())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let binary = crate::test_support::caddy_binary();
+        let directory = crate::test_support::Directory::new();
+        let config = directory.0.join("stop-test.json");
+        std::fs::write(
+            &config,
+            r#"{"admin":{"disabled":true,"config":{"persist":false}}}"#,
+        )
+        .unwrap();
+        let (mut events, child) = app
+            .shell()
+            .command(binary)
+            .args(["run", "--config", config.to_str().unwrap()])
+            .env("APPDATA", &directory.0)
+            .env("XDG_CONFIG_HOME", &directory.0)
+            .env("XDG_DATA_HOME", &directory.0)
+            .spawn()
+            .unwrap();
+        let alive = Arc::new(AtomicBool::new(true));
+        let observed = alive.clone();
+        let listener = tokio::spawn(async move {
+            while let Some(event) = events.recv().await {
+                if matches!(event, CommandEvent::Terminated(_)) {
+                    // Make the difference between requesting a kill and
+                    // observing exit deterministic, including on fast machines.
+                    tokio::time::sleep(Duration::from_millis(120)).await;
+                    observed.store(false, Ordering::SeqCst);
+                    break;
+                }
+            }
+        });
+        let mut process = CaddyProcess {
+            pid: child.pid(),
+            started_at: std::time::Instant::now(),
+            child: Some(child),
+            alive,
+            expected_exit: Arc::new(AtomicBool::new(false)),
+        };
+        stop_process(&mut process, Duration::from_secs(5))
+            .await
+            .unwrap();
+        assert!(!process.alive.load(Ordering::SeqCst));
+        assert!(process.expected_exit.load(Ordering::SeqCst));
+        listener.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn an_unconfirmed_exit_fails_instead_of_allowing_installation() {
+        use std::sync::{atomic::Ordering, Arc};
+        let mut process = CaddyProcess {
+            pid: 123,
+            started_at: std::time::Instant::now(),
+            child: None,
+            alive: Arc::new(AtomicBool::new(true)),
+            expected_exit: Arc::new(AtomicBool::new(false)),
+        };
+        let error = stop_process(&mut process, Duration::from_millis(30))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("123") && error.contains("退出超时"),
+            "{error}"
+        );
+        assert!(process.alive.load(Ordering::SeqCst));
+    }
 
     #[tokio::test]
     async fn startup_accepts_delayed_admin_response() {

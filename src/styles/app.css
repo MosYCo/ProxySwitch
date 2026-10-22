@@ -76,6 +76,17 @@
 }
 
 @layer components {
+  .release-notes { @apply space-y-3 text-sm leading-6 text-muted-foreground; overflow-wrap: anywhere; }
+  .release-notes :is(h1, h2, h3, h4) { @apply font-medium text-foreground; }
+  .release-notes h1 { @apply text-base; }
+  .release-notes :is(h2, h3, h4) { @apply mt-5 text-sm; }
+  .release-notes :is(ul, ol) { @apply space-y-2 pl-5; }
+  .release-notes ul { @apply list-disc; }
+  .release-notes ol { @apply list-decimal; }
+  .release-notes code { @apply rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground; }
+  .release-notes pre { @apply overflow-x-auto rounded-md bg-muted p-3; }
+  .release-notes pre code { @apply p-0; }
+  .release-notes blockquote { @apply border-l-2 pl-3; }
   .workspace-content { @apply mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-5 py-6 lg:px-8 xl:px-10; }
   .section-label { @apply text-xs font-medium uppercase tracking-widest text-muted-foreground; }
   .page-enter { animation: page-enter 220ms ease-out both; }
