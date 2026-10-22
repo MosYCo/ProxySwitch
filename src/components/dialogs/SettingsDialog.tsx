@@ -69,12 +69,12 @@ export function SettingsDialog({ open, onOpenChange, projects, onSaved }: { open
   }
   const active = tabs.find((item) => item.id === tab)!
   const settings = view?.settings
-  return <><Dialog open={open} onOpenChange={(value) => { if (!value) close() }}><DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[880px]">
-    <DialogHeader className="border-b px-6 py-5"><DialogTitle>设置</DialogTitle><DialogDescription>管理应用偏好、代理默认规则和项目数据。</DialogDescription></DialogHeader>
-    <form autoComplete="off" noValidate onSubmit={submit}>
-      <Tabs value={tab} onValueChange={setTab} className="flex max-h-[calc(90dvh-175px)] min-h-[min(420px,calc(90dvh-175px))] flex-col gap-0 overflow-hidden">
+  return <><Dialog open={open} onOpenChange={(value) => { if (!value) close() }}><DialogContent className="flex h-[min(760px,90dvh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[880px]">
+    <DialogHeader className="shrink-0 border-b px-6 py-5"><DialogTitle>设置</DialogTitle><DialogDescription>管理应用偏好、代理默认规则和项目数据。</DialogDescription></DialogHeader>
+    <form className="flex min-h-0 flex-1 flex-col" autoComplete="off" noValidate onSubmit={submit}>
+      <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden">
         <div className="shrink-0 border-b px-4 py-3"><TabsList className="grid w-full grid-cols-2 gap-1 group-data-horizontal/tabs:h-auto min-[360px]:grid-cols-3 md:grid-cols-6" aria-label="设置分类">{tabs.map(({ id, title, icon: Icon }) => <TabsTrigger key={id} value={id} disabled={dataBusy || saving} className="h-9 min-w-0 px-1 text-xs sm:px-2 sm:text-sm"><Icon />{title}</TabsTrigger>)}</TabsList></div>
-        <ScrollArea className="min-h-0 min-w-0 flex-1"><div className="p-6"><div className="mb-6"><h2 className="text-base font-semibold">{active.title}</h2><p className="mt-2 text-xs leading-5 text-muted-foreground">{active.hint}</p></div>
+        <ScrollArea type="auto" className="min-h-0 min-w-0 flex-1 overflow-hidden"><div className="p-6"><div className="mb-6"><h2 className="text-base font-semibold">{active.title}</h2><p className="mt-2 text-xs leading-5 text-muted-foreground">{active.hint}</p></div>
           {loading ? <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />正在读取设置…</div> : !view || !settings ? <Button type="button" variant="outline" onClick={() => void load()}>重试加载</Button> : <fieldset disabled={saving} className="min-w-0 space-y-5">
             <TabsContent value="startup" forceMount hidden={tab !== "startup"} className="space-y-6">
               <SettingSwitch label="开机自启" description={view.autostart_supported ? "登录 Windows 后启动本应用。" : "当前系统暂不支持此选项。"} value={settings.startup.launch_at_login} onChange={(value) => update("startup", { ...settings.startup, launch_at_login: value })} disabled={!view.autostart_supported} />
@@ -110,7 +110,7 @@ export function SettingsDialog({ open, onOpenChange, projects, onSaved }: { open
           {error && <Alert ref={errorBox} className="mt-5" variant="destructive"><AlertCircle className="size-4" /><AlertDescription>{error}</AlertDescription></Alert>}
         </div></ScrollArea>
       </Tabs>
-      <div className="flex items-center justify-between gap-3 border-t bg-card px-6 py-4"><span className="text-xs text-muted-foreground" role="status">{view && (dirty ? "有未保存的修改" : "设置已与本机同步")}</span><div className="flex gap-2"><Button type="button" variant="outline" disabled={saving || dataBusy} onClick={close}>关闭</Button><Button type="submit" disabled={!view || loading || saving || dataBusy || !dirty}>{saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}保存设置</Button></div></div>
+      <div className="flex shrink-0 items-center justify-between gap-3 border-t bg-card px-6 py-4"><span className="text-xs text-muted-foreground" role="status">{view && (dirty ? "有未保存的修改" : "设置已与本机同步")}</span><div className="flex gap-2"><Button type="button" variant="outline" disabled={saving || dataBusy} onClick={close}>关闭</Button><Button type="submit" disabled={!view || loading || saving || dataBusy || !dirty}>{saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}保存设置</Button></div></div>
     </form>
   </DialogContent></Dialog><AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>放弃未保存的修改？</AlertDialogTitle><AlertDialogDescription>当前修改尚未生效，可返回继续编辑或放弃修改并关闭设置。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>继续编辑</AlertDialogCancel><AlertDialogAction onClick={() => onOpenChange(false)}>放弃修改</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></>
 }
