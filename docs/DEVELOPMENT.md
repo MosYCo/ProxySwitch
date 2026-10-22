@@ -12,7 +12,7 @@
 
 ## 分支与开发流程
 
-仓库使用 `develop` 和 `master` 两条长期分支。默认分支为 `develop`，用于汇总下一版本的功能和修复；`master` 用于稳定版本与发布。
+仓库使用 `develop` 和 `master` 两条长期分支。仓库默认分支为 `master`，用于稳定版本与发布；日常开发从 `develop` 开始，汇总下一版本的功能和修复。创建功能或维护 PR 时请明确选择 `develop` 为目标。
 
 | 变更 | 起点与 PR 目标 | 合并方式 |
 | --- | --- | --- |
@@ -27,7 +27,7 @@
 
 Dependabot 每周向 `develop` 提交 npm、Cargo 和 GitHub Actions 更新。同一生态的次版本与补丁更新按组提交，跨主版本升级独立审查；安全修复可随时生成。依赖变更需要重新生成许可证声明并通过完整 CI。
 
-默认分支为 `develop` 时，发布后 GitHub 可能提示 `master had recent pushes` 并显示 `Compare & pull request`。这是近期推送建议；发布 merge commit 会让 `master` 多一条合并记录，文件内容可能完全一致。先查看分支比较中的文件差异，不要为消除提示重写历史或重复创建发布 PR。
+GitHub 的 `had recent pushes` 和 `Compare & pull request` 是近期推送建议。默认分支为 `master` 时也可能提示开发分支近期有更新；发布 merge commit 还会让 `master` 多一条合并记录，文件内容可能完全一致。先查看分支比较中的文件差异，不要为消除提示重写历史或重复创建发布 PR。
 
 依赖 PR 若只因 `Verify dependency notices` 失败，应检出更新分支，安装锁定依赖后执行 `pnpm licenses:generate` 并提交更新的 `licenses/DEPENDENCIES.txt`，再等待完整 CI；不要跳过许可证检查。可将相互关联的安全修复整合为一个维护 PR，验证合入后再关闭被替代的补丁 PR。
 

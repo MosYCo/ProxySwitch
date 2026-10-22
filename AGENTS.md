@@ -1,6 +1,6 @@
 # 分支与协作约定
 
-- 默认开发分支为 `develop`，`master` 用于稳定版本与发布。日常功能、修复和文档调整从最新 `develop` 创建 `codex/<目标>` 分支，PR 的目标为 `develop`。
+- 仓库默认分支为 `master`，用于稳定版本与发布；日常开发分支为 `develop`。功能、修复和文档调整从最新 `develop` 创建 `codex/<目标>` 分支，PR 的目标为 `develop`。
 - 一个 PR 对应一个完整目标，相关小修改继续提交到同一分支；独立目标使用独立 PR。功能 PR 在检查通过后使用 squash 合并。
 - 发布准备也通过 PR 合入 `develop`：同步四处版本号，将 `CHANGELOG.md` 的「未发布」变更整理为带日期的版本记录。发布范围确定后创建 `develop` → `master` 的发布 PR，使用 merge commit 保留长期分支的共同历史，避免 squash 或 rebase 合并发布 PR。
 - 两条长期分支均通过 PR 和 `Checks passed` 检查后合并，不直接推送、强制推送或绕过保护。仅用户明确要求发布或打包时创建版本 tag；tag 必须指向已经进入 `master` 的提交。
