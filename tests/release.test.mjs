@@ -1,11 +1,29 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { extractRelease, validateVersions, validateReleaseTag } from '../scripts/release-notes.mjs'
-import { isCurrentInstaller } from '../scripts/package-release.mjs'
+import { isCurrentInstaller, tauriBuildArgs } from '../scripts/package-release.mjs'
+import { buildTargets } from '../scripts/ci-metadata.mjs'
 
 const packageJson = { version: '2.1.0' }
 const cargo = '[package]\nname = "caddy-proxy-tools"\nversion = "2.1.0"\n\n[dependencies]\n'
 const lock = '[[package]]\nname = "caddy-proxy-tools"\nversion = "2.1.0"\n'
+
+test('release commands request the application bundle required for signed macOS updates', () => {
+  for (const target of buildTargets) {
+    for (const bundleArgs of [['--bundles', target.bundles.join(',')], [`--bundles=${target.bundles.join(',')}`]]) {
+      const args = tauriBuildArgs(['--ci', '--target', target.target, ...bundleArgs], ['--locked'], target)
+      const separator = args.indexOf('--')
+      const cli = args.slice(0, separator)
+      const requestedBundles = cli.flatMap((arg, index) => arg === '--bundles' ? cli[index + 1].split(',') : arg.startsWith('--bundles=') ? arg.slice(10).split(',') : [])
+      // Tauri only creates .app.tar.gz when app is explicitly requested;
+      // building dmg alone creates an intermediate .app without an update.
+      const required = target.platform.startsWith('macos') ? ['app', 'dmg'] : target.bundles
+      assert.deepEqual([...new Set(requestedBundles)].sort(), [...required].sort(), target.id)
+      assert.deepEqual(args.slice(separator + 1), ['--locked'])
+      assert.equal(target.bundles.includes('app'), false, 'The internal app bundle is not a public installer format')
+    }
+  }
+})
 
 test('release tags must match the exact application version', () => {
   assert.doesNotThrow(() => validateReleaseTag('v2.1.1', '2.1.1'))

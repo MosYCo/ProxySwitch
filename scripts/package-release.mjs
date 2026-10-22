@@ -12,6 +12,13 @@ import { collectMacUpdate, createUpdatePlatforms, macUpdateName, updateManifest 
 
 export { isCurrentInstaller } from './release-artifacts.mjs'
 
+export function tauriBuildArgs(cliArgs, runnerArgs, target) {
+  // Tauri 2.11 requires app explicitly to create the signed macOS update
+  // archive, even when dmg already builds an intermediate .app bundle.
+  const updaterBundles = target.platform.startsWith('macos') ? ['--bundles', 'app'] : []
+  return ['build', ...cliArgs, ...updaterBundles, '--', ...runnerArgs]
+}
+
 async function main() {
   const args = process.argv.slice(2)
   if (args.some((arg) => ['--no-bundle', '--config', '-c', '--target-dir'].includes(arg) || arg.startsWith('--config=') || arg.startsWith('--target-dir='))) throw new Error('发布流程不接受跳过打包、覆盖配置或自定义 --target-dir；构建目录请使用 CARGO_TARGET_DIR')
@@ -48,7 +55,7 @@ async function main() {
   const cli = require.resolve('@tauri-apps/cli/tauri.js')
   const startedAt = Date.now()
   await new Promise((accept, reject) => {
-    const child = spawn(process.execPath, [cli, 'build', ...cliArgs, '--', ...runnerArgs], { cwd: projectRoot, stdio: 'inherit', env: { ...process.env, pnpm_config_pm_on_fail: 'ignore' } })
+    const child = spawn(process.execPath, [cli, ...tauriBuildArgs(cliArgs, runnerArgs, target)], { cwd: projectRoot, stdio: 'inherit', env: { ...process.env, pnpm_config_pm_on_fail: 'ignore' } })
     child.once('error', reject)
     child.once('exit', (code, signal) => code === 0 ? accept() : reject(new Error(`打包失败（${signal || code}），未整理发布产物`)))
   })
