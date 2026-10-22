@@ -21,6 +21,7 @@
 - 设置健康检查、超时、Host 与请求 / 响应 Header；全局默认值可由项目和环境覆盖。
 - 导入 / 导出项目、自动备份与恢复，配置启动、自启和关闭窗口后的行为。
 - 支持深浅主题，安装包内置 Caddy，无需另行安装 Caddy 服务。
+- 自动检查正式版本，查看更新内容并下载，确认后安装重启；支持的平台及首次升级说明见 [应用更新](docs/UPDATING.md)。
 
 ## 安装与支持范围
 
@@ -34,6 +35,8 @@
 | macOS 11 及以上 | Intel（x64） | DMG |
 
 Windows 已完成本地运行验证；三端已通过 GitHub Actions 原生检查并生成安装包，macOS / Linux 仍需实际安装验证。macOS 构建目前使用 ad hoc 签名，尚未配置 Apple Developer ID 签名与公证。登录自启目前仅支持 Windows。
+
+当前源码的界面基于 React 19、Tailwind CSS 4 和官方 shadcn/ui。Windows 请保持 WebView2 更新；macOS 需要 Safari 16.4 同代及以后的系统 WebKit，Linux 需要相应的现代 WebKitGTK。基础组件的新增和升级见 [界面组件维护](docs/UI.md)。
 
 ## 快速上手
 
@@ -80,6 +83,8 @@ pnpm tauri:build
 ```
 
 打包前会检查版本和更新日志，生成依赖许可声明；产物整理到 `artifacts/<版本>/<平台>/`，包含安装包、中文更新日志、许可证及 SHA-256 文件。已有平台发布目录不会被覆盖。
+
+打包与标签发布需要配置更新签名私钥，GitHub Actions 使用仓库 Secrets。更新包、签名和统一的 `latest.json` 会随 Release 发布，密钥配置与验证见 [应用更新](docs/UPDATING.md)。普通检查无需私钥。
 
 GitHub Actions 在提交和 PR 上运行四个目标的原生检查，推送与应用版本一致的 `v<版本>` 标签时构建三端安装包。所有目标成功并通过产物完整性校验后，汇总发布安装包、更新日志、许可证和统一的 SHA-256 文件。首次公开的操作和仓库设置见 [开源发布说明](docs/OPEN_SOURCE.md)。
 

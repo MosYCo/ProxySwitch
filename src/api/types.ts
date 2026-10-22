@@ -1,6 +1,7 @@
 // API Types
 
 export interface Environment {
+  icon?: string | null
   proxy?: ProxyOptions
   health?: HealthOverride
   addr: string
@@ -9,6 +10,7 @@ export interface Environment {
 }
 
 export interface Project {
+  icon?: string | null
   proxy?: ProxyOptions
   health?: HealthOverride
   route_prefix?: string | null

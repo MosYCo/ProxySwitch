@@ -12,6 +12,7 @@ mod settings;
 mod store;
 #[cfg(test)]
 mod test_support;
+mod updater;
 mod validation;
 
 use std::sync::Arc;
@@ -71,6 +72,8 @@ fn quit_app(app: AppHandle) {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updater::UpdateState::default())
         .setup(|app| {
             // Resolve config path
             let config_dir = app
@@ -297,6 +300,11 @@ fn main() {
             settings::list_backups,
             settings::create_backup,
             settings::restore_backup,
+            updater::get_updater_status,
+            updater::check_app_update,
+            updater::download_app_update,
+            updater::install_app_update,
+            updater::open_release_page,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

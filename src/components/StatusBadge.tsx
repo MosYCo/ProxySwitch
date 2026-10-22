@@ -13,7 +13,7 @@ interface StatusBadgeProps {
 export function StatusBadge({ status, showIcon = true, size = "default" }: StatusBadgeProps) {
   const config = {
     healthy: {
-      variant: "success" as const,
+      variant: "outline" as const,
       label: "健康",
       icon: Check,
     },
@@ -37,7 +37,7 @@ export function StatusBadge({ status, showIcon = true, size = "default" }: Statu
   const { variant, label, icon: Icon } = config[status]
 
   return (
-    <Badge variant={variant} className={cn(size === "sm" && "text-[10px] px-1.5 py-0")}>
+    <Badge variant={variant} className={cn(status === "healthy" && "border-success/25 bg-success/10 text-success", size === "sm" && "text-[10px] px-1.5 py-0")}>
       {showIcon && (
         <Icon className={cn(status === "loading" && "animate-spin")} />
       )}

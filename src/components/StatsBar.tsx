@@ -1,5 +1,6 @@
 import { Activity, ArrowUpRight, Box, Layers, Radio } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Card } from "@/components/ui/card"
 
 interface StatsBarProps {
   projectCount: number
@@ -26,7 +27,7 @@ export function StatsBar({ projectCount, enabledProjectCount, envCount, checkedE
   return (
     <section aria-label="代理概览" className="grid grid-cols-2 gap-3 xl:gap-4 lg:grid-cols-4">
       {items.map(({ label, value, suffix, hint, icon: Icon, tone, mono }) => (
-        <div key={label} className="surface min-w-0 px-4 py-3.5 xl:px-5">
+        <Card key={label} className="min-w-0 gap-0 px-4 py-3.5 xl:px-5">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground">{label}</span>
             <span className={cn("flex size-7 items-center justify-center rounded-lg", tone)}><Icon className="size-3.5" strokeWidth={1.7} /></span>
@@ -38,7 +39,7 @@ export function StatsBar({ projectCount, enabledProjectCount, envCount, checkedE
           <p className={cn("mt-2 truncate text-xs text-muted-foreground", mono && "font-mono")} title={hint}>
             {label === "可用后端" && healthyCount > 0 && <ArrowUpRight className="mr-1 inline size-3 text-success" />}{hint}
           </p>
-        </div>
+        </Card>
       ))}
     </section>
   )

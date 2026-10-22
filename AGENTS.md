@@ -9,3 +9,11 @@
 
 - README、产品文档、更新日志和包描述聚焦产品用途、功能与使用方式，使用正式名称 Moss ProxySwitch，不加入「由 Moss 开发」「个人标识」等作者介绍。
 - 公开版本和更新日志从 0.1.0 开始；`docs/history/` 仅作本地开发归档，不提交，也不在公开文档中引用。
+
+# shadcn/ui 约定
+
+- 基础组件使用官方 shadcn/ui Radix Nova 源码，通过官方 CLI 管理，不直接修改 `src/components/ui/`、`src/hooks/use-mobile.ts` 和 `src/lib/utils.ts`。
+- 新增组件使用 `pnpm ui:add <组件名>`，查看更新使用 `pnpm ui:diff`，升级使用 `pnpm ui:update`。不手工更新 `shadcn.manifest.json` 掩盖源码差异。
+- 业务组合、状态颜色和布局放在业务组件中，品牌主题放在 `src/styles/app.css`。通过官方组件的属性、组合与主题变量定制，不添加自定义基础组件变体。
+- 业务页面不直接使用原生 `button`、`input`、`select`、`textarea`、`details`、`summary` 或 `label`，使用对应官方组件。禁用自动填充通过 `src/lib/inputBehavior.ts` 在调用层传入。
+- 组件升级后运行 `pnpm ui:check`、`pnpm build`、`pnpm test`、`pnpm test:ui`，依赖变化后重新生成许可证清单。官方组件的 API 变化在业务调用层适配。

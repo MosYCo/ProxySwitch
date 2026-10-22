@@ -38,6 +38,7 @@ pub fn validate_config(config: &Config) -> Result<()> {
 }
 
 pub fn validate_project(project: &Project) -> Result<()> {
+    validate_icon(project.icon.as_deref())?;
     crate::preferences::validate_proxy(&project.proxy)?;
     crate::preferences::validate_health(&project.health)?;
     if let Some(path) = &project.route_prefix {
@@ -74,9 +75,17 @@ pub fn validate_project(project: &Project) -> Result<()> {
 }
 
 pub fn validate_environment(env: &Environment) -> Result<()> {
+    validate_icon(env.icon.as_deref())?;
     crate::preferences::validate_proxy(&env.proxy)?;
     crate::preferences::validate_health(&env.health)?;
     validate_backend_addr(&env.addr)
+}
+
+fn validate_icon(icon: Option<&str>) -> Result<()> {
+    if icon.is_some_and(|value| value.len() > 128 || value.chars().any(char::is_control)) {
+        bail!("图标标识不能超过 128 字节或包含控制字符");
+    }
+    Ok(())
 }
 
 pub fn validate_name(label: &str, value: &str) -> Result<()> {

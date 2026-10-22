@@ -1,3 +1,4 @@
+import { inputBehavior } from "@/lib/inputBehavior"
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import { AlertCircle, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import type { Environment, ProxyOptions } from "@/api"
@@ -15,7 +16,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { Disclosure } from "@/components/ui/disclosure"
+import { DetailsSection } from "@/components/DetailsSection"
+import { IconPicker } from "@/components/IconPicker"
+import { environmentAppearance } from "@/lib/entityIcons"
 import {
   Dialog,
   DialogContent,
@@ -60,6 +63,7 @@ export function EnvironmentDialog({
   const [name, setName] = useState("")
   const [addr, setAddr] = useState("")
   const [desc, setDesc] = useState("")
+  const [icon, setIcon] = useState<string | null>(null)
   const [insecureSkipVerify, setInsecureSkipVerify] = useState(true)
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
@@ -86,6 +90,7 @@ export function EnvironmentDialog({
       setInsecureSkipVerify(true)
     }
     setError("")
+    setIcon(environment?.icon ?? null)
   }, [envName, environment, open])
 
   const handleSubmit = async (event: FormEvent) => {
@@ -126,6 +131,7 @@ export function EnvironmentDialog({
       const saved = await onSave(name.trim(), {
         addr: formattedAddr,
         desc: desc.trim(),
+        icon,
         insecure_skip_verify: insecureSkipVerify,
         proxy: proxyEditor.current?.read() || {},
         health: healthEditor.current?.read() || {},
@@ -152,7 +158,7 @@ export function EnvironmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px]">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>{isEditing ? "编辑环境" : "添加环境"}</DialogTitle>
           <DialogDescription>
@@ -171,7 +177,7 @@ export function EnvironmentDialog({
           <FieldGroup>
             <Field data-invalid={nameInvalid || undefined}>
               <FieldLabel htmlFor="env-name">环境名称</FieldLabel>
-              <Input
+              <Input {...inputBehavior}
                 id="env-name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
@@ -186,7 +192,7 @@ export function EnvironmentDialog({
 
             <Field data-invalid={addrInvalid || undefined}>
               <FieldLabel htmlFor="addr">后端地址</FieldLabel>
-              <Input
+              <Input {...inputBehavior}
                 id="addr"
                 value={addr}
                 onChange={(event) => setAddr(event.target.value)}
@@ -203,7 +209,7 @@ export function EnvironmentDialog({
 
             <Field>
               <FieldLabel htmlFor="env-desc">环境描述</FieldLabel>
-              <Input
+              <Input {...inputBehavior}
                 id="env-desc"
                 value={desc}
                 onChange={(event) => setDesc(event.target.value)}
@@ -212,6 +218,8 @@ export function EnvironmentDialog({
               />
               <FieldDescription>可选，用于在环境卡片中显示。</FieldDescription>
             </Field>
+
+            <IconPicker label="环境图标" value={icon} onChange={setIcon} fallback={environmentAppearance(name).icon} disabled={saving || deleting} />
 
             <Field orientation="horizontal" data-disabled={saving || deleting || undefined}>
               <FieldContent>
@@ -228,8 +236,8 @@ export function EnvironmentDialog({
                 aria-label="跳过 HTTPS 证书校验"
               />
             </Field>
-            <Disclosure title="环境代理参数" disabled={saving || deleting}><fieldset disabled={saving || deleting} className="space-y-4"><p className="text-xs leading-5 text-muted-foreground">留空继承项目和全局默认，填写后仅对此环境生效。</p><ProxyEditor ref={proxyEditor} initialValue={environment?.proxy} inherited={proxyDefaults} /></fieldset></Disclosure>
-            <Disclosure title="环境健康检查" disabled={saving || deleting}><fieldset disabled={saving || deleting}><HealthEditor ref={healthEditor} initialValue={environment?.health} /></fieldset></Disclosure>
+            <DetailsSection title="环境代理参数" disabled={saving || deleting}><fieldset disabled={saving || deleting} className="space-y-4"><p className="text-xs leading-5 text-muted-foreground">留空继承项目和全局默认，填写后仅对此环境生效。</p><ProxyEditor ref={proxyEditor} initialValue={environment?.proxy} inherited={proxyDefaults} /></fieldset></DetailsSection>
+            <DetailsSection title="环境健康检查" disabled={saving || deleting}><fieldset disabled={saving || deleting}><HealthEditor ref={healthEditor} initialValue={environment?.health} /></fieldset></DetailsSection>
           </FieldGroup>
 
           <DialogFooter className="gap-2">

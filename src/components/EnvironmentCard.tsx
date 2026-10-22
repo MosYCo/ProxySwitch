@@ -1,12 +1,15 @@
 import { useState } from "react"
-import { AlertCircle, ArrowLeftRight, Check, CheckCheck, Code2, FlaskConical, Globe2, Loader2, Lock, MoreHorizontal, Pencil, Server, Trash2, Zap } from "lucide-react"
+import { AlertCircle, ArrowLeftRight, Check, CheckCheck, Loader2, Lock, MoreHorizontal, Pencil, Trash2, Zap } from "lucide-react"
 import type { Environment, HealthStatus } from "@/api"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Disclosure } from "@/components/ui/disclosure"
+import { Card } from "@/components/ui/card"
+import { DetailsSection } from "@/components/DetailsSection"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { CopyButton } from "@/components/CopyButton"
+import { EntityIcon } from "@/components/EntityIcon"
+import { environmentAppearance } from "@/lib/entityIcons"
 import { cn } from "@/lib/utils"
 
 interface EnvironmentCardProps {
@@ -25,14 +28,6 @@ interface EnvironmentCardProps {
   disabled?: boolean
 }
 
-function getAppearance(name: string) {
-  const value = name.toLowerCase()
-  if (/prod|production|生产/.test(value)) return { icon: Globe2, color: "bg-info/10 text-info" }
-  if (/test|stag|qa|uat|测试|预发/.test(value)) return { icon: FlaskConical, color: "bg-warning/10 text-warning" }
-  if (/dev|local|开发|本地/.test(value)) return { icon: Code2, color: "bg-primary/10 text-primary" }
-  return { icon: Server, color: "bg-primary/10 text-primary" }
-}
-
 function formatLastCheck(value?: string) {
   if (!value) return null
   const date = new Date(value)
@@ -48,7 +43,7 @@ export function EnvironmentCard({ name, environment, isActive, projectEnabled = 
   const isHealthy = checking ? healthStatus?.healthy : undefined
   const latency = healthStatus?.latency_ms
   const lastCheck = checking ? formatLastCheck(healthStatus?.last_check) : null
-  const { icon: Icon, color } = getAppearance(name)
+  const { icon, color } = environmentAppearance(name)
   const secure = environment.addr.startsWith("https://")
 
   const deleteEnvironment = async () => {
@@ -63,14 +58,18 @@ export function EnvironmentCard({ name, environment, isActive, projectEnabled = 
 
   return (
     <>
-      <article className={cn("surface group flex min-w-0 flex-col p-5 transition-[border-color,box-shadow] duration-200 hover:shadow-md hover:shadow-foreground/[0.03]", isActive ? "border-primary/45 bg-accent/15 ring-1 ring-primary/5" : "hover:border-primary/25")} aria-label={`环境 ${name}`} aria-busy={switching || deleting}>
+      <Card className={cn("relative min-w-0 gap-0 overflow-hidden p-5", isActive ? "border-primary bg-accent/60 ring-1 ring-primary/30" : "border-border bg-card")} role="region" aria-label={`环境 ${name}`} aria-busy={switching || deleting}>
+        {isActive && <div className="absolute inset-y-0 left-0 w-1 bg-primary" aria-hidden="true" />}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+          <Badge variant={isActive ? "default" : "outline"}>{isActive ? <Check className="size-3" /> : <span className="size-1.5 rounded-full bg-muted-foreground/50" />}{isActive ? serving ? "正在使用 · 当前转发" : "已选择 · 待生效" : "未使用"}</Badge>
+          {isActive && <span className="text-xs font-medium text-primary">{serving ? "请求将转发至此环境" : !projectEnabled ? "启用项目后生效" : !statusKnown ? "正在确认引擎状态" : "启动引擎后生效"}</span>}
+        </div>
         <div className="flex items-start gap-3">
-          <div className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl", color)}><Icon className="size-[19px]" strokeWidth={1.7} /></div>
+          <div className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl", color)}><EntityIcon value={environment.icon} fallback={icon} /></div>
           <div className="min-w-0 flex-1 pt-0.5">
             <h3 className="truncate text-sm font-semibold" title={name}>{name}</h3>
             <p className="mt-1 truncate text-xs text-muted-foreground" title={environment.desc}>{environment.desc || "未添加环境描述"}</p>
           </div>
-          {isActive && <Badge className="mt-1 shrink-0 border-transparent bg-primary/10 text-primary" variant="outline"><Check className="size-3" />{serving ? "当前转发" : "已选择"}</Badge>}
           {(onEdit || onDelete) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="-mr-2 size-7 shrink-0 text-muted-foreground" disabled={disabled} aria-label={`打开环境 ${name} 的更多操作`}><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
@@ -94,7 +93,7 @@ export function EnvironmentCard({ name, environment, isActive, projectEnabled = 
           </div>
         </div>
 
-        {isHealthy === false && healthStatus?.error && <Disclosure variant="error" className="mt-3 text-xs" title={<span className="flex items-center gap-1.5 leading-5"><AlertCircle className="size-3.5 shrink-0" />后端连接异常，查看原因</span>}><p className="select-text break-all leading-5">{healthStatus.error}</p><p className="mt-2 leading-5 text-muted-foreground">请检查后端服务和网络，或切换到其他可用环境。</p></Disclosure>}
+        {isHealthy === false && healthStatus?.error && <DetailsSection variant="error" className="mt-3 text-xs" title={<span className="flex items-center gap-1.5 leading-5"><AlertCircle className="size-3.5 shrink-0" />后端连接异常，查看原因</span>}><p className="select-text break-all leading-5">{healthStatus.error}</p><p className="mt-2 leading-5 text-muted-foreground">请检查后端服务和网络，或切换到其他可用环境。</p></DetailsSection>}
 
         <div className="mt-auto pt-4">
           <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
@@ -106,13 +105,13 @@ export function EnvironmentCard({ name, environment, isActive, projectEnabled = 
               </div>
               <span className="text-[11px] text-muted-foreground">{!checking ? "健康检查已暂停" : lastCheck ? `${lastCheck} 检查` : "自动检测后端可用性"}</span>
             </div>
-            <Button variant={isActive ? "secondary" : "outline"} size="sm" className={cn("h-9", isActive && "bg-primary/5 text-primary disabled:opacity-100")} onClick={onSwitch} disabled={disabled || switching || isActive || !isCaddyActive || !statusKnown} title={!statusKnown ? "正在确认引擎状态" : !isCaddyActive ? "请先启动 Caddy 引擎，再切换环境" : undefined}>
-              {switching ? <Loader2 className="size-3 animate-spin" /> : isActive ? <CheckCheck className="size-3" /> : <ArrowLeftRight className="size-3" />}
-              {switching ? "正在切换" : isActive ? serving ? "正在使用" : "已选择 · 待生效" : !statusKnown ? "等待引擎状态" : !isCaddyActive ? "启动引擎后切换" : projectEnabled ? "切换到此环境" : "选择此环境"}
-            </Button>
+            {isActive ? <div role="status" aria-label="环境使用状态" className="flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-medium text-primary"><CheckCheck className="size-4" />{serving ? "正在使用" : "已选择 · 待生效"}</div> : <Button variant="outline" onClick={onSwitch} disabled={disabled || switching || !isCaddyActive || !statusKnown} title={!statusKnown ? "正在确认引擎状态" : !isCaddyActive ? "请先启动 Caddy 引擎，再切换环境" : undefined}>
+              {switching ? <Loader2 className="size-3 animate-spin" /> : <ArrowLeftRight className="size-3" />}
+              {switching ? "正在切换" : !statusKnown ? "等待引擎状态" : !isCaddyActive ? "启动引擎后切换" : projectEnabled ? "切换到此环境" : "选择此环境"}
+            </Button>}
           </div>
         </div>
-      </article>
+      </Card>
 
       {onDelete && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open) }}>
         <AlertDialogContent>

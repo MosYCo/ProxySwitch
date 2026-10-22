@@ -34,6 +34,7 @@ impl Change {
                 // An old edit dialog must not overwrite newer environment changes.
                 project.listen = update.listen;
                 project.desc = update.desc;
+                project.icon = update.icon;
                 project.path_prefix = update.path_prefix;
                 project.strip_prefix = update.strip_prefix;
                 project.route_prefix = update.route_prefix;
@@ -295,18 +296,25 @@ mod tests {
     #[test]
     fn stale_project_edit_preserves_newer_environments_and_current_selection() {
         let mut current = config();
-        let update = current.projects["demo"].clone();
+        let mut update = current.projects["demo"].clone();
+        update.icon = Some("shopping-bag".into());
         let p = current.projects.get_mut("demo").unwrap();
         p.environments
             .insert("prod".into(), p.environments["dev"].clone());
         p.current = "prod".into();
         p.enabled = false;
+        p.environments.get_mut("dev").unwrap().icon = Some("emoji:🌱".into());
         let next = Change::UpdateProject("demo".into(), update)
             .prepare(&current)
             .unwrap();
         assert_eq!(next.projects["demo"].current, "prod");
         assert!(next.projects["demo"].environments.contains_key("prod"));
         assert!(!next.projects["demo"].enabled);
+        assert_eq!(next.projects["demo"].icon.as_deref(), Some("shopping-bag"));
+        assert_eq!(
+            next.projects["demo"].environments["dev"].icon.as_deref(),
+            Some("emoji:🌱")
+        );
     }
 
     #[test]
@@ -442,6 +450,7 @@ mod tests {
             .insert(
                 "prod".into(),
                 Environment {
+                    icon: None,
                     proxy: Default::default(),
                     health: Default::default(),
                     addr: "http://127.0.0.1:4000".into(),

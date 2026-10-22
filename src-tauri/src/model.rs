@@ -24,6 +24,8 @@ fn default_insecure_skip_verify() -> bool {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Project {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
     #[serde(default)]
     pub proxy: ProxyOptions,
     #[serde(default)]
@@ -71,6 +73,8 @@ pub struct ProjectActivation {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Environment {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
     #[serde(default)]
     pub proxy: ProxyOptions,
     #[serde(default)]

@@ -39,4 +39,6 @@ git push github v0.1.0
 
 工作流会检查标签，构建 Windows EXE / MSI、Linux AppImage / DEB / RPM，以及 Apple Silicon 和 Intel 两种 macOS DMG。所有平台完成并通过哈希与公共文件一致性校验后，再统一发布更新日志、许可证和总 SHA-256 文件。后续发布时，先同步应用版本及更新日志，再推送对应的 `v<版本>` 标签；不复用已有公开版本覆盖旧安装包。发布后检查下载入口和附件，不要把本地旧版本安装包当作这次工作流产物。
 
+带应用内更新的版本还需要预先配置 Tauri 更新签名的两个 Actions Secrets，详见 [应用更新](UPDATING.md)。工作流会上传签名更新包和 `latest.json`，先保留为草稿，所有附件上传并校验完成后再公开。已有旧版用户需手动安装一次带更新功能的版本。
+
 四个目标的配置见 [开发文档](DEVELOPMENT.md)。三端原生检查与首个版本的安装包构建已通过 GitHub Actions；macOS / Linux 仍需实际安装验证。macOS 当前为 ad hoc 签名，尚未接入 Apple Developer ID 签名及公证。

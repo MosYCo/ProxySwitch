@@ -16,7 +16,7 @@ export function publicReleaseName(name) {
 
 export function isCurrentInstaller(name, version) {
   const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return safeReleaseName(name) && new RegExp(`(?:^|[_-])${escaped}(?=[_-])`).test(name) && /\.(exe|msi|deb|rpm|AppImage|dmg|app\.tar\.gz)$/i.test(name)
+  return safeReleaseName(name) && new RegExp(`(?:^|[_-])${escaped}(?=[_-])`).test(name) && /\.(exe|msi|deb|rpm|AppImage|dmg)$/i.test(name)
 }
 
 export async function collectInstallers(directory, version, startedAt) {

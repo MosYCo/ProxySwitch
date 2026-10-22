@@ -1,3 +1,5 @@
+import { inputBehavior } from "@/lib/inputBehavior"
+import { Input } from "@/components/ui/input"
 import { useEffect, useRef, useState } from "react"
 import { Download, History, Loader2, Upload } from "lucide-react"
 import { settingsApi, type AppSettings, type BackupInfo, type ImportPreview, type Project } from "@/api"
@@ -29,7 +31,7 @@ export function DataSettings({ settings, onChange, projects, backupDir, dirty, o
     <SettingNumber label="最多保留备份数" min={1} max={100} value={settings.max_backups} onChange={(v) => onChange({ ...settings, max_backups: v ?? 0 })} />
     <div className="border-t pt-5"><h3 className="text-sm font-semibold">导入与导出</h3><p className="mt-1.5 text-xs leading-5 text-muted-foreground">迁移项目、环境与高级规则。本机启动选项和 Caddy 管理地址保持当前设置。</p>
       <div className="mt-4 flex flex-wrap gap-2"><SettingSelect className="min-w-[160px] flex-1" label="导出项目范围" value={project ? `project:${project}` : "all"} onValueChange={(next) => setProject(next === "all" ? "" : next.slice(8))} disabled={busy} options={[{ value: "all", label: "全部项目" }, ...projects.map((item) => ({ value: `project:${item.name}`, label: item.name }))]} /><Button type="button" variant="outline" disabled={busy} onClick={() => void run(async () => setNotice(`已导出到下载目录：${await settingsApi.exportProjects(project || null)}`))}><Download className="size-4" />导出到下载目录</Button></div>
-      <input ref={fileInput} type="file" accept=".json,application/json" className="hidden" aria-label="选择配置文件" onChange={(event) => {
+      <Input {...inputBehavior} ref={fileInput} type="file" accept=".json,application/json" className="hidden" aria-label="选择配置文件" onChange={(event) => {
         const file = event.target.files?.[0]; event.target.value = ""; if (!file) return
         void run(async () => { if (file.size > 10 * 1024 * 1024) throw new Error("配置文件不能超过 10 MB"); const data = await file.text(); setImported({ data, preview: await settingsApi.previewImport(data), name: file.name }); setReplaceAll(false) })
       }} />

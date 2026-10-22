@@ -1,8 +1,11 @@
+import { inputBehavior } from "@/lib/inputBehavior"
+import { Label } from "@/components/ui/label"
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import { AlertCircle, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import type { Project, ProxyOptions } from "@/api"
 import { HealthEditor, ProxyEditor, type HealthEditorHandle, type ProxyEditorHandle } from "@/components/settings/ProxyEditor"
 import { SettingField } from "@/components/settings/SettingsFields"
+import { IconPicker } from "@/components/IconPicker"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
@@ -17,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Disclosure } from "@/components/ui/disclosure"
+import { DetailsSection } from "@/components/DetailsSection"
 import {
   Dialog,
   DialogContent,
@@ -64,6 +67,7 @@ export function ProjectDialog({
   const [name, setName] = useState("")
   const [listen, setListen] = useState("")
   const [desc, setDesc] = useState("")
+  const [icon, setIcon] = useState<string | null>(null)
   const [enabled, setEnabled] = useState(true)
   const [pathPrefix, setPathPrefix] = useState(false)
   const [stripPrefix, setStripPrefix] = useState(true)
@@ -98,6 +102,7 @@ export function ProjectDialog({
       setStripPrefix(true)
     }
     setError("")
+    setIcon(project?.icon ?? null)
     setRoutePrefix(project?.route_prefix || "")
     setRewritePrefix(project?.rewrite_prefix || "")
   }, [project, open])
@@ -144,6 +149,7 @@ export function ProjectDialog({
         name: name.trim(),
         listen: formattedListen,
         desc: desc.trim(),
+        icon,
         enabled,
         path_prefix: pathPrefix,
         strip_prefix: pathPrefix && stripPrefix,
@@ -176,7 +182,7 @@ export function ProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px]">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>{isEditing ? "编辑项目" : "添加项目"}</DialogTitle>
           <DialogDescription>
@@ -195,7 +201,7 @@ export function ProjectDialog({
           <FieldGroup>
             <Field data-invalid={nameInvalid || undefined}>
               <FieldLabel htmlFor="name">项目名称</FieldLabel>
-              <Input
+              <Input {...inputBehavior}
                 id="name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
@@ -210,7 +216,7 @@ export function ProjectDialog({
 
             <Field data-invalid={listenInvalid || undefined}>
               <FieldLabel htmlFor="listen">监听端口</FieldLabel>
-              <Input
+              <Input {...inputBehavior}
                 id="listen"
                 value={listen}
                 onChange={(event) => setListen(event.target.value)}
@@ -225,7 +231,7 @@ export function ProjectDialog({
 
             <Field>
               <FieldLabel htmlFor="desc">项目描述</FieldLabel>
-              <Input
+              <Input {...inputBehavior}
                 id="desc"
                 value={desc}
                 onChange={(event) => setDesc(event.target.value)}
@@ -234,6 +240,8 @@ export function ProjectDialog({
               />
               <FieldDescription>可选，用于在界面上显示。</FieldDescription>
             </Field>
+
+            <IconPicker label="项目图标" value={icon} onChange={setIcon} disabled={saving || deleting} />
 
             {!isEditing && <Field orientation="horizontal">
               <FieldContent>
@@ -251,24 +259,24 @@ export function ProjectDialog({
               </FieldContent>
               <Switch checked={pathPrefix} onCheckedChange={setPathPrefix} disabled={saving || deleting} aria-label="使用项目路径前缀" />
             </Field>
-            {pathPrefix && <label className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+            {pathPrefix && <Label className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
               <Checkbox className="mt-0.5" checked={stripPrefix} onCheckedChange={(checked) => setStripPrefix(checked === true)} disabled={saving || deleting} />
               转发时移除项目路径前缀（旧配置默认保留前缀）
-            </label>}
+            </Label>}
 
-            <Disclosure title="高级代理规则" disabled={saving || deleting}><fieldset disabled={saving || deleting} className="space-y-5">
+            <DetailsSection title="高级代理规则" disabled={saving || deleting}><fieldset disabled={saving || deleting} className="space-y-5">
               <p className="text-xs leading-5 text-muted-foreground">留空的参数继承全局默认，环境可以继续覆盖。</p>
-              <SettingField label="自定义匹配前缀" description="例如 /api/order，覆盖项目名称前缀。共用端口时，匹配前缀须不同。"><Input aria-label="自定义匹配前缀" value={routePrefix} onChange={(event) => setRoutePrefix(event.target.value)} placeholder={pathPrefix ? `/${name || "项目名"}` : "留空匹配整个端口"} /></SettingField>
-              <SettingField label="替换为转发前缀" description="填写后替换匹配前缀，再拼接到后端基础路径。填 / 表示移除匹配前缀。"><Input aria-label="替换为转发前缀" value={rewritePrefix} onChange={(event) => setRewritePrefix(event.target.value)} placeholder="例如 /v1，留空沿用现有转发方式" /></SettingField>
+              <SettingField label="自定义匹配前缀" description="例如 /api/order，覆盖项目名称前缀。共用端口时，匹配前缀须不同。"><Input {...inputBehavior} aria-label="自定义匹配前缀" value={routePrefix} onChange={(event) => setRoutePrefix(event.target.value)} placeholder={pathPrefix ? `/${name || "项目名"}` : "留空匹配整个端口"} /></SettingField>
+              <SettingField label="替换为转发前缀" description="填写后替换匹配前缀，再拼接到后端基础路径。填 / 表示移除匹配前缀。"><Input {...inputBehavior} aria-label="替换为转发前缀" value={rewritePrefix} onChange={(event) => setRewritePrefix(event.target.value)} placeholder="例如 /v1，留空沿用现有转发方式" /></SettingField>
               <ProxyEditor ref={proxyEditor} initialValue={project?.proxy} inherited={proxyDefaults} />
-            </fieldset></Disclosure>
-            <Disclosure title="项目健康检查" disabled={saving || deleting}><fieldset disabled={saving || deleting}><HealthEditor ref={healthEditor} initialValue={project?.health} /></fieldset></Disclosure>
+            </fieldset></DetailsSection>
+            <DetailsSection title="项目健康检查" disabled={saving || deleting}><fieldset disabled={saving || deleting}><HealthEditor ref={healthEditor} initialValue={project?.health} /></fieldset></DetailsSection>
 
             {isEditing && project && (
               <Field orientation="horizontal">
                 <FieldTitle>当前环境</FieldTitle>
                 <div className="flex items-center gap-2">
-                  <Badge variant="info" className="font-mono">
+                  <Badge variant="secondary" className="font-mono">
                     {project.current || "未设置"}
                   </Badge>
                   <span className="text-xs text-muted-foreground">

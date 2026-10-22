@@ -14,7 +14,7 @@ Moss ProxySwitch 的原创代码与图标采用根目录的 MIT 许可证。第�
 
 ## 界面与桌面运行时
 
-项目使用 React、Radix UI、Tailwind CSS、Lucide 和 Tauri 等开源软件。界面组件部分基于 shadcn/ui，其 MIT 版权声明单独保存在 `licenses/shadcn-ui-LICENSE.txt`。其余生产 npm 依赖和锁文件中所有平台的 Cargo 依赖完整声明、来源及许可文本见 `licenses/DEPENDENCIES.txt`。
+项目使用 React、Radix UI、Tailwind CSS、Lucide 和 Tauri 等开源软件。界面基础组件使用 shadcn/ui 官方源码，其 MIT 版权声明单独保存在 `licenses/shadcn-ui-LICENSE.txt`。Geist 字体通过 Fontsource 随应用分发，采用 SIL Open Font License 1.1。生产 npm 依赖和锁文件中所有平台的 Cargo 依赖完整声明、来源及许可文本见 `licenses/DEPENDENCIES.txt`。
 
 部分 Rust 依赖采用 MPL-2.0；对应版本的源码可通过报告中的 crates.io 地址获取，也可以使用 `cargo vendor --locked` 下载。本项目没有修改这些依赖的源码。依赖维护者的版权和源码许可仍然适用。
 

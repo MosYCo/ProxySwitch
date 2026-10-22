@@ -69,13 +69,35 @@ jobs:
         run: |
           pnpm licenses:generate
           git diff --exit-code -- licenses/DEPENDENCIES.txt
+  ui:
+    name: UI components and interactions
+    needs: plan
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm ui:check
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:ui
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: ui-test-report
+          path: artifacts/ui-tests/
+          if-no-files-found: ignore
   status:
     name: Checks passed
     if: always()
-    needs: [plan, check]
+    needs: [plan, check, ui]
     runs-on: ubuntu-latest
     steps:
       - env:
           PLAN_RESULT: ${{ needs.plan.result }}
           CHECK_RESULT: ${{ needs.check.result }}
-        run: test "$PLAN_RESULT" = success && test "$CHECK_RESULT" = success
+          UI_RESULT: ${{ needs.ui.result }}
+        run: test "$PLAN_RESULT" = success && test "$CHECK_RESULT" = success && test "$UI_RESULT" = success

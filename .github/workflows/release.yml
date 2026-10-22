@@ -33,6 +33,8 @@ jobs:
       - name: Build platform installers
         env:
           APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri:build --ci --target "$BUILD_TARGET" --bundles "$BUILD_BUNDLES"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -58,9 +60,47 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: node scripts/merge-release.mjs
+      - name: Preserve already published releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'NODE'
+          const url = `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/releases/tags/${encodeURIComponent(process.env.GITHUB_REF_NAME)}`
+          const response = await fetch(url, { headers: { Authorization: `Bearer ${process.env.GH_TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } })
+          if (response.status !== 404) {
+            if (!response.ok) throw new Error(`Cannot check existing release (${response.status})`)
+            if (!(await response.json()).draft) throw new Error('This version is already public; publish a new version instead of replacing it')
+          }
+          NODE
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        id: release
         with:
+          draft: true
           body_path: artifacts/release-assets/RELEASE_NOTES_${{ needs.checks.outputs.version }}.md
           files: artifacts/release-assets/*
           fail_on_unmatched_files: true
           overwrite_files: false
+      - name: Publish only after every release asset is uploaded
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.release.outputs.id }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto'
+          import { readFile, readdir } from 'node:fs/promises'
+          const directory = 'artifacts/release-assets'
+          const base = `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/releases/${process.env.RELEASE_ID}`
+          const headers = { Authorization: `Bearer ${process.env.GH_TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }
+          const response = await fetch(`${base}/assets?per_page=100`, { headers })
+          if (!response.ok) throw new Error(`Cannot verify release assets (${response.status})`)
+          const assets = await response.json(), names = await readdir(directory)
+          if (assets.length !== names.length) throw new Error('Release upload is incomplete; leaving the release as a draft')
+          for (const name of names) {
+            const asset = assets.find(asset => asset.name === name), bytes = await readFile(`${directory}/${name}`)
+            const digest = `sha256:${createHash('sha256').update(bytes).digest('hex')}`
+            if (!asset || asset.state !== 'uploaded' || asset.size !== bytes.length || asset.digest && asset.digest !== digest) throw new Error(`Invalid uploaded release asset: ${name}`)
+          }
+          const published = await fetch(base, { method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ draft: false, prerelease: false, make_latest: 'true' }) })
+          if (!published.ok) throw new Error(`Cannot publish completed release (${published.status})`)
+          console.log('All installers, signed updates and latest.json verified; release published.')
+          NODE

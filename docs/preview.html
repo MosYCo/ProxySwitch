@@ -10,6 +10,7 @@ import {AppToastProvider} from '/src/contexts/ToastContext.tsx';
 import {ThemeProvider} from '/src/contexts/ThemeContext.tsx';
 import {defaultSettings} from '/src/lib/settings.ts';
 import '/src/index.css';
+import '/src/styles/app.css';
 const environment = (addr,desc) => ({addr,desc,insecure_skip_verify:false,proxy:{},health:{}});
 const projects = [
   {name:'storefront',desc:'商城前端与 API',listen:':8080',enabled:true,path_prefix:true,strip_prefix:true,current:'development',environments:{development:environment('http://127.0.0.1:3000','本地开发'),staging:environment('https://staging.example.com/api','预发布验证'),production:environment('https://api.example.com','生产环境')},proxy:{},health:{}},
@@ -36,6 +37,7 @@ window.__TAURI_INTERNALS__={transformCallback:()=>++eventId,unregisterCallback()
   if(command==='get_health_status')return structuredClone(health);
   if(command==='get_caddy_status')return {running:true,managed:true,pid:1234,uptime_secs:7218,reachable:true};
   if(command==='get_app_settings')return {admin:'localhost:2019',settings:structuredClone(defaultSettings),autostart_supported:true,backup_dir:'示例数据 / backups'};
+  if(command==='get_updater_status')return {current_version:'0.2.0',check_supported:false,install_supported:false,reason:'示例预览不检查或安装更新，请使用正式安装版。'};
   if(command==='get_logs')return structuredClone(logs);
   if(command==='get_proxy_status')return projects.map(p=>({name:p.name,listen:p.listen,enabled:p.enabled,current_env:p.current,backend_addr:p.environments[p.current].addr}));
   if(command==='list_backups')return [];

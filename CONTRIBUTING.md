@@ -32,7 +32,7 @@ cargo test --locked --manifest-path src-tauri/Cargo.toml
 
 ## 依赖与许可证
 
-更新依赖后运行 `pnpm licenses:generate`，一并提交 `licenses/DEPENDENCIES.txt`。Caddy 升级流程见 `docs/DEVELOPMENT.md`。本项目直接复用了 shadcn/ui 组件，相关 MIT 声明保留在 `licenses/`。
+更新依赖后运行 `pnpm licenses:generate`，一并提交 `licenses/DEPENDENCIES.txt`。Caddy 升级流程见 `docs/DEVELOPMENT.md`。本项目直接复用了 shadcn/ui 组件，相关 MIT 声明保留在 `licenses/`。基础组件不直接修改，新增、升级及交互验证流程见 [界面组件维护](docs/UI.md)。
 
 ## 版本与发布
 

@@ -14,7 +14,7 @@
 
 Node.js 24.18.0、pnpm 11.10.0、Rust 1.96.1 分别由 `.node-version`、`package.json` 和 `rust-toolchain.toml` 固定。请提交 `pnpm-lock.yaml` 和 `src-tauri/Cargo.lock`，不要通过删除锁文件处理构建错误。
 
-Windows 需要 Visual Studio C++ Build Tools 与 WebView2；macOS 需要 Xcode Command Line Tools；Linux 需要 WebKitGTK 4.1、GTK、OpenSSL、AppIndicator 等开发库，详见 [Tauri 环境准备](https://v2.tauri.app/start/prerequisites/)。CI 的 Ubuntu 安装命令见 [公共构建准备](../.github/actions/setup-build/action.yml)。Windows 已完成本地运行验证，macOS / Linux 仍需首次 runner 构建和安装验证。
+Windows 需要 Visual Studio C++ Build Tools 与 WebView2；macOS 需要 Xcode Command Line Tools；Linux 需要 WebKitGTK 4.1、GTK、OpenSSL、AppIndicator 等开发库，详见 [Tauri 环境准备](https://v2.tauri.app/start/prerequisites/)。CI 的 Ubuntu 安装命令见 [公共构建准备](../.github/actions/setup-build/action.yml)。四个目标已完成 v0.1.0 的 CI 构建；各平台的安装和桌面运行体验仍需在对应系统验证。
 
 ```sh
 pnpm install --frozen-lockfile
@@ -66,6 +66,8 @@ Rust 测试在临时目录和随机回环端口运行，使用当前平台的真
 
 ## CI 与标签发布
 
+应用内更新使用 Tauri 官方 updater 与 GitHub Release 的 `latest.json`。标签发布需要预先配置更新签名 Secrets，本地打包也需要相同私钥；普通 CI 不需要。密钥管理、平台范围和验证步骤见 [应用更新](UPDATING.md)。
+
 CI 和 Release 共用 [构建目标清单](../.github/build-targets.json)，在各平台原生运行，避免误用变化中的 `macos-latest` 架构。
 
 | 平台标识 | GitHub runner | Rust 目标 | 格式 |
@@ -75,8 +77,8 @@ CI 和 Release 共用 [构建目标清单](../.github/build-targets.json)，在�
 | macos-arm64 | macos-15 | aarch64-apple-darwin | DMG |
 | macos-x64 | macos-15-intel | x86_64-apple-darwin | DMG |
 
-每个目标检查 runner 架构与 Caddy sidecar 是否匹配，运行前端测试与构建、Rust 格式检查、真实 Caddy 回归测试和许可证一致性检查。Linux 测试通过 Xvfb 运行。分支保护可要求汇总检查 `Checks passed` 成功。
+每个目标检查 runner 架构与 Caddy sidecar 是否匹配，运行前端测试与构建、Rust 格式检查、真实 Caddy 回归测试和许可证一致性检查。Linux 测试通过 Xvfb 运行。独立 UI 检查验证官方组件源码并运行 Chromium 交互回归，组件维护命令见 [界面组件维护](UI.md)。分支保护可要求汇总检查 `Checks passed` 成功。
 
 推送 `v<版本>` 标签后，Release 先复用完整 CI，再构建四个目标。各平台上传独立目录，汇总脚本检查目标与格式是否齐全、逐项校验哈希、核对公共许可文件与更新说明是否一致。公开附件名会将空格转换为点号，并拒绝 GitHub 会再次改写的字符和转换后的同名安装包，再生成覆盖所有附件的 `SHA256SUMS.txt`，保证清单中的名称与实际下载名一致。单个平台失败时不会发布残缺的 Release；已存在的 Release 附件不覆盖。普通提交只运行检查，不生成安装包。
 
-macOS 最低版本设为 11.0，当前 CI 使用 ad hoc 签名，不依赖 Apple 开发者凭据，也没有进行 Apple 公证。正式分发的 Developer ID 签名与公证需另行配置；当前工作流尚未在 GitHub 实际运行，不能以静态配置检查替代各平台安装验证。
+macOS 安装包的系统版本下限为 11.0；当前前端使用 Tailwind CSS 4，实际运行还需要支持现代 CSS 的 WebKit（Safari 16.4 同代及以后），详见 [界面组件维护](UI.md)。当前 CI 使用 ad hoc 签名，不依赖 Apple 开发者凭据，也没有进行 Apple 公证。正式分发的 Developer ID 签名与公证需另行配置；构建成功不能替代各平台安装验证。

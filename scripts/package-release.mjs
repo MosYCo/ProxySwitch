@@ -8,8 +8,16 @@ import { prepareRelease, projectRoot } from './release-notes.mjs'
 import { writeLicenseArchive } from './license-archive.mjs'
 import { getBuildTarget, rustHost } from './ci-metadata.mjs'
 import { assertEmptyDirectory, collectInstallers, validateInstallerKinds, writeChecksums } from './release-artifacts.mjs'
+import { collectMacUpdate, createUpdatePlatforms, macUpdateName, updateManifest } from './updater-artifacts.mjs'
 
 export { isCurrentInstaller } from './release-artifacts.mjs'
+
+export function tauriBuildArgs(cliArgs, runnerArgs, target) {
+  // Tauri 2.11 requires app explicitly to create the signed macOS update
+  // archive, even when dmg already builds an intermediate .app bundle.
+  const updaterBundles = target.platform.startsWith('macos') ? ['--bundles', 'app'] : []
+  return ['build', ...cliArgs, ...updaterBundles, '--', ...runnerArgs]
+}
 
 async function main() {
   const args = process.argv.slice(2)
@@ -42,11 +50,12 @@ async function main() {
     if ((await readdir(versionDirectory, { withFileTypes: true })).some((entry) => !entry.isDirectory())) throw new Error(`版本 ${release.version} 已有旧格式发布产物，请升级版本后再打包；不会覆盖旧安装包`)
   } catch (error) { if (error.code !== 'ENOENT') throw error }
   await assertEmptyDirectory(directory)
+  if (!process.env.TAURI_SIGNING_PRIVATE_KEY) throw new Error('缺少 TAURI_SIGNING_PRIVATE_KEY，不能生成可更新的发布版本。请参考 docs/UPDATING.md 配置签名密钥。')
   const require = createRequire(import.meta.url)
   const cli = require.resolve('@tauri-apps/cli/tauri.js')
   const startedAt = Date.now()
   await new Promise((accept, reject) => {
-    const child = spawn(process.execPath, [cli, 'build', ...cliArgs, '--', ...runnerArgs], { cwd: projectRoot, stdio: 'inherit', env: { ...process.env, pnpm_config_pm_on_fail: 'ignore' } })
+    const child = spawn(process.execPath, [cli, ...tauriBuildArgs(cliArgs, runnerArgs, target)], { cwd: projectRoot, stdio: 'inherit', env: { ...process.env, pnpm_config_pm_on_fail: 'ignore' } })
     child.once('error', reject)
     child.once('exit', (code, signal) => code === 0 ? accept() : reject(new Error(`打包失败（${signal || code}），未整理发布产物`)))
   })
@@ -63,6 +72,17 @@ async function main() {
     const name = basename(installer)
     await copyFile(installer, join(directory, name), constants.COPYFILE_EXCL)
     files.push(name)
+    if (/\.(exe|msi|appimage)$/i.test(name)) {
+      await copyFile(`${installer}.sig`, join(directory, `${name}.sig`), constants.COPYFILE_EXCL)
+      files.push(`${name}.sig`)
+    }
+  }
+  if (target.platform.startsWith('macos')) {
+    const archive = await collectMacUpdate(bundleDirectory, startedAt)
+    const name = macUpdateName(release.version, target)
+    await copyFile(archive, join(directory, name), constants.COPYFILE_EXCL)
+    await copyFile(`${archive}.sig`, join(directory, `${name}.sig`), constants.COPYFILE_EXCL)
+    files.push(name, `${name}.sig`)
   }
   const notesName = `RELEASE_NOTES_${release.version}.md`
   await writeFile(join(directory, notesName), release.markdown, { flag: 'wx' })
@@ -73,6 +93,9 @@ async function main() {
   }
   await writeLicenseArchive(projectRoot, join(directory, 'THIRD_PARTY_LICENSES.zip'))
   files.push('THIRD_PARTY_LICENSES.zip')
+  const platforms = await createUpdatePlatforms(directory, files, { ...target, bundles }, release.version)
+  await writeFile(join(directory, 'latest.json'), `${JSON.stringify(updateManifest(release, platforms), null, 2)}\n`, { flag: 'wx' })
+  files.push('latest.json')
   await writeChecksums(directory, files)
   console.log(`\n发布目录：${directory}\n${[...files, 'SHA256SUMS.txt'].join('\n')}`)
 }
