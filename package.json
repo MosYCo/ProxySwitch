@@ -24,6 +24,8 @@
     "ui:add": "node scripts/shadcn.mjs add",
     "preview": "vite preview",
     "release:notes": "node scripts/release-notes.mjs",
+    "release:prepare": "node scripts/prepare-version.mjs",
+    "release:github": "node scripts/github-release.mjs",
     "check:public": "node scripts/check-public-content.mjs --history",
     "licenses:generate": "node scripts/dependency-licenses.mjs",
     "tauri": "tauri",

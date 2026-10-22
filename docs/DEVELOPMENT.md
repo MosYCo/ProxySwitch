@@ -83,6 +83,50 @@ Rust 测试在临时目录和随机回环端口运行，使用当前平台的真
 
 ## 发布
 
+### 一句话发布
+
+可以直接要求「发一个版本」「发一个小版本」或「发布 0.3.0」。前两种默认使用补丁版本；已完成版本准备时复用现有版本。此指令授权完成准备 PR、审查、CI、合并、发布 PR、标签与正式 Release 的全过程，无需逐项确认。日常合入 `develop` 或 `master` 本身不会生成安装包。
+
+执行前先核对最新正式 Release 和远程分支，检查本次发布范围，整理 `CHANGELOG.md` 的「未发布」内容。版本准备工具默认只预览，不写文件、不创建分支、不发布；它拒绝版本回退、重复版本、不一致的源版本、无效日期及不完整的更新说明。
+
+```sh
+git fetch github
+git switch develop
+git merge --ff-only github/develop
+pnpm release:prepare patch
+# 使用预览输出的分支名；以下版本仅为示例。
+git switch -c codex/prepare-0.2.2
+pnpm release:prepare patch --write
+```
+
+写入命令要求工作区干净且当前分支名为 `codex/prepare-<版本>`。它同步四处应用版本，将「未发布」整理为带日期的版本条目，保留旧版本日志和依赖版本。之后审查差异、提交并推送此分支。
+
+仓库提供不依赖 `gh` CLI 的 GitHub 工具，默认使用 `github` remote，可通过 `--remote` 指定另一个 GitHub remote。认证优先读取进程环境中的 `GH_TOKEN` / `GITHUB_TOKEN`，本地也可读取已有 Git Credential Manager 凭据，不将令牌写入文件或输出。创建 PR 的正文从文件读取，避免多行转义问题。
+
+```sh
+pnpm release:github open-pr --head codex/prepare-0.2.2 --base develop --title "chore: 准备 0.2.2" --body-file artifacts/prepare-pr.md
+pnpm release:github inspect-pr --pr <准备PR编号>
+pnpm release:github merge-pr --pr <准备PR编号> --head-sha <已审查headSHA> --base-sha <已审查baseSHA>
+
+# 准备 PR 合入后，同步并检出 develop，再创建发布 PR。
+pnpm release:github open-pr --head develop --base master --title "release: 发布 0.2.2" --body-file artifacts/release-pr.md
+pnpm release:github inspect-pr --pr <发布PR编号>
+pnpm release:github merge-pr --pr <发布PR编号> --head-sha <已审查headSHA> --base-sha <已审查baseSHA>
+
+# 等待发布合并提交在 master 上的 CI 成功后创建标签。
+pnpm release:github branch-ci --base master --sha <发布合并SHA>
+pnpm release:github tag --version 0.2.2 --sha <发布合并SHA> --pr <发布PR编号>
+pnpm release:github status --version 0.2.2
+```
+
+工具要求完整 CI 成功，拒绝来源仓库不符、head/base 变化、未解决讨论、要求修改的审查结果和不满足分支保护的 PR。它只允许短期分支向 `develop` 做 squash 合并，以及 `develop` 向 `master` 做 merge 合并。工具不代替代码审查，也不伪造正式 Approve：作者无法批准自己的 PR；如保护规则要求其他人批准，仍必须满足该要求。
+
+创建标签前再次核对发布 PR、两父提交的合并历史、`master` 当前 SHA、四处版本、中文更新日志及合并后的完整 CI。已有标签仅在指向相同提交时作为重试返回，绝不移动或覆盖。标签使用本地用户凭据创建，因此可以触发现有 `push: tags` Release 工作流；Actions 的 `GITHUB_TOKEN` 创建标签不会触发后续工作流，工具会拒绝在 Actions 中执行此操作。
+
+`status` 只读报告构建进度和发布附件，不代表下载与安装验证已通过。发布执行者还需核对公开 Release 的版本、各平台附件、`SHA256SUMS.txt`、更新签名及 `latest.json`，再交付下载链接；安装体验的验证范围应如实说明。
+
+### 手动发布步骤
+
 1. 从 `develop` 创建发布准备分支，例如 `codex/prepare-0.2.1`。将「未发布」中的实际变更整理为带日期的版本条目，同步 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock`、`src-tauri/tauri.conf.json`，经 PR 合入 `develop`。
 2. 确认发布范围和验证结果，创建 `develop` → `master` 的发布 PR；完整 CI 通过后使用 **Create a merge commit** 合并。合并 PR 本身不生成安装包。
 3. 仅在明确要求发布时同步 `master`，核对版本与更新日志，在合并提交创建并推送 `v<版本>` 标签。Release 工作流检查提交已进入 `master`，再构建与发布安装包。
