@@ -2,6 +2,19 @@ use serde_json::Value;
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+pub fn caddy_binary() -> std::path::PathBuf {
+    let target = match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("windows", "x86_64") => "caddy-x86_64-pc-windows-msvc.exe",
+        ("linux", "x86_64") => "caddy-x86_64-unknown-linux-gnu",
+        ("macos", "aarch64") => "caddy-aarch64-apple-darwin",
+        ("macos", "x86_64") => "caddy-x86_64-apple-darwin",
+        _ => panic!("unsupported Caddy test platform"),
+    };
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("binaries")
+        .join(target)
+}
+
 pub struct Request {
     pub headers: std::collections::BTreeMap<String, String>,
     pub method: String,

@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test"
 
 type UpdateMock = { checks: number; downloads: number; installs: number; releasePages: number; failDownload: boolean; finishDownload: (() => void) | null }
 
-async function mockUpdater(page: Page, options: { installSupported?: boolean; failDownload?: boolean; latest?: boolean } = {}) {
+async function mockUpdater(page: Page, options: { installSupported?: boolean; failDownload?: boolean; latest?: boolean; notes?: string } = {}) {
   await page.addInitScript(options => {
     const testWindow = window as unknown as { __updateMock: UpdateMock }
     testWindow.__updateMock = { checks: 0, downloads: 0, installs: 0, releasePages: 0, failDownload: !!options.failDownload, finishDownload: null }
@@ -15,7 +15,7 @@ async function mockUpdater(page: Page, options: { installSupported?: boolean; fa
         value.invoke = async (command: string, args: Record<string, unknown> = {}) => {
           const mock = testWindow.__updateMock
           if (command === "get_updater_status") return { current_version: "0.2.0", check_supported: true, install_supported: options.installSupported !== false, reason: options.installSupported === false ? "当前安装格式需手动更新，请从发布页下载对应安装包。AppImage 支持应用内更新。" : null }
-          if (command === "check_app_update") { mock.checks++; return options.latest ? null : { version: "0.3.0", notes: "新增应用内更新\n修复环境切换", published_at: "2026-10-21T00:00:00Z" } }
+          if (command === "check_app_update") { mock.checks++; return options.latest ? null : { version: "0.3.0", notes: options.notes ?? "新增应用内更新\n修复环境切换", published_at: "2026-10-21T00:00:00Z" } }
           if (command === "download_app_update") {
             mock.downloads++
             if (mock.failDownload) { mock.failDownload = false; throw new Error("下载或签名校验失败，未安装更新，可重试。") }
@@ -38,6 +38,38 @@ async function mockUpdater(page: Page, options: { installSupported?: boolean; fa
 }
 
 const readMock = (page: Page) => page.evaluate(() => (window as unknown as { __updateMock: UpdateMock }).__updateMock)
+
+test("更新底栏完整显示，长更新说明按 Markdown 排版且只有正文滚动", async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 600 })
+  const notes = "# 版本更新\n\n### 界面与交互\n\n" + Array.from({ length: 35 }, (_, index) => `- 改进项目 ${index + 1} 的 **环境切换** 和 \`Caddy\` 状态显示。`).join("\n")
+  await mockUpdater(page, { notes })
+  const dialog = page.getByRole("dialog", { name: "应用更新", exact: true })
+  const assertFooterInside = async () => {
+    const bounds = (await dialog.boundingBox())!
+    for (const button of await dialog.locator('[data-slot="dialog-footer"]').getByRole("button").all()) {
+      const rect = (await button.boundingBox())!
+      expect(rect.x).toBeGreaterThanOrEqual(bounds.x)
+      expect(rect.y + rect.height).toBeLessThanOrEqual(bounds.y + bounds.height - 8)
+      expect(rect.x + rect.width).toBeLessThanOrEqual(bounds.x + bounds.width)
+    }
+  }
+  await assertFooterInside()
+  await dialog.getByRole("button", { name: "检查更新", exact: true }).click()
+  await expect(dialog.getByRole("heading", { name: "界面与交互", exact: true })).toBeVisible()
+  await expect(dialog.getByRole("listitem")).toHaveCount(35)
+  await expect(dialog.locator('code').first()).toHaveText("Caddy")
+  await page.screenshot({ path: test.info().outputPath("update-notes.png"), animations: "disabled" })
+  const viewport = dialog.locator('[data-slot="scroll-area-viewport"]')
+  await expect(viewport).toHaveCount(1)
+  const rect = (await viewport.boundingBox())!
+  await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2)
+  await page.mouse.wheel(0, 600)
+  await expect.poll(() => viewport.evaluate(element => element.scrollTop)).toBeGreaterThan(100)
+  await assertFooterInside()
+  await expect(dialog.getByRole("heading", { name: "应用更新", exact: true })).toBeInViewport()
+  await expect(dialog.getByRole("button", { name: "下载更新", exact: true })).toBeInViewport()
+  await page.screenshot({ path: test.info().outputPath("update-layout.png"), animations: "disabled" })
+})
 
 test("自动检查提醒新版本，下载可在后台继续，安装始终需要确认", async ({ page }) => {
   await page.clock.install()
