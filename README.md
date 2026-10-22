@@ -73,6 +73,8 @@ pnpm tauri:dev
 
 下载器固定 Caddy **2.11.4**，核对官方 SHA-512、固定归档 SHA-256 和二进制 SHA-256。已验证缓存可离线复用。完整环境、检查命令和升级步骤见 [开发文档](docs/DEVELOPMENT.md)。
 
+源码默认分支为 `develop`，用于汇总开发中的功能与修复；稳定发布使用 `master` 和版本标签。贡献 PR 面向 `develop`，分支与发版步骤见 [开发流程](docs/DEVELOPMENT.md#分支与开发流程)。
+
 ## 构建与发布
 
 ```sh

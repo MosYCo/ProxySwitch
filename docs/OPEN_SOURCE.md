@@ -25,14 +25,17 @@ git push -u github master
 
 1. Settings → Security 启用 Private vulnerability reporting，使 `SECURITY.md` 中的私密入口可用。
 2. 设置仓库简介与 Topics，例如 `caddy`、`tauri`、`reverse-proxy`、`developer-tools`。
-3. 确认 Actions 的 Checks 工作流在四个原生 runner 上通过。默认分支可启用保护规则，要求 PR 与汇总检查 `Checks passed` 通过后合并。
+3. 确认 Actions 的 Checks 工作流在四个原生 runner 上通过。从 `master` 创建 `develop` 并设为默认分支；两条分支均启用保护，要求 PR、汇总检查 `Checks passed` 与讨论解决后合并，禁止强制推送和删除。`develop` 使用线性历史与 squash 合并；`master` 允许发布 PR 使用 merge commit。具体流程见 [开发流程](DEVELOPMENT.md#分支与开发流程)。
 4. 如账号支持，启用 secret scanning / push protection。仓库内的模式检查只是一层辅助检查。
 
 ## 首次 Release
 
-核对 `0.1.0` 的首次发布日志，确保四处版本一致。确认该提交的 CI 成功后：
+核对 `0.1.0` 的首次发布日志，确保四处版本一致。发布准备合入 `develop` 后，通过 `develop` → `master` 的发布 PR 保留历史并合入稳定分支。确认该提交的 CI 成功后，切换到同步后的 `master` 再创建标签：
 
 ```sh
+git fetch github
+git switch master
+git pull --ff-only github master
 git tag -a v0.1.0 -m "Moss ProxySwitch 0.1.0"
 git push github v0.1.0
 ```
