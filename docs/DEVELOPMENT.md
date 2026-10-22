@@ -10,6 +10,23 @@
 
 公开版本从 `0.1.0` 开始：`0.1.x` 用于修复问题，`0.2.0` 等次版本用于新增功能或较大调整；核心功能和配置兼容策略稳定后再发布 `1.0.0`。
 
+## 分支与开发流程
+
+仓库使用 `develop` 和 `master` 两条长期分支。默认分支为 `develop`，用于汇总下一版本的功能和修复；`master` 用于稳定版本与发布。
+
+| 变更 | 起点与 PR 目标 | 合并方式 |
+| --- | --- | --- |
+| 功能、修复、文档、依赖维护 | 从 `develop` 创建短期分支 → `develop` | Squash and merge |
+| 版本号与更新日志整理 | 从 `develop` 创建发布准备分支 → `develop` | Squash and merge |
+| 发布下一版本 | `develop` → `master` | Create a merge commit |
+| 已发布版本的紧急修复 | 从 `master` 创建 hotfix 分支 → `master`，再以新 PR 同步修复到 `develop` | Squash and merge |
+
+日常开发先同步 `develop`，再创建 `codex/<目标>` 分支。一个 PR 对应一个完整目标，相关小修改在同一分支继续提交。两条长期分支均要求通过 PR、汇总检查 `Checks passed` 和讨论解决检查；禁止强制推送和删除。`develop` 保持线性历史，`master` 允许发布用的 merge commit。
+
+发布 PR 使用 merge commit，使后续版本仍能从上次发布的开发提交继续比较，避免两个长期分支因 squash 丢失共同历史。发布 PR 打开后固定本次发布范围，新功能保留在各自短期分支，待发布 PR 合并后再进入 `develop`。
+
+Dependabot 每周向 `develop` 提交 npm、Cargo 和 GitHub Actions 更新。同一生态的次版本与补丁更新按组提交，跨主版本升级独立审查；安全修复可随时生成。依赖变更需要重新生成许可证声明并通过完整 CI。
+
 ## 固定工具链
 
 Node.js 24.18.0、pnpm 11.10.0、Rust 1.96.1 分别由 `.node-version`、`package.json` 和 `rust-toolchain.toml` 固定。请提交 `pnpm-lock.yaml` 和 `src-tauri/Cargo.lock`，不要通过删除锁文件处理构建错误。
@@ -60,7 +77,21 @@ Rust 测试在临时目录和随机回环端口运行，使用当前平台的真
 
 ## 发布
 
-先将实际变更整理成带日期的版本条目，同步四处应用版本，再运行 `pnpm tauri:build`。默认选择当前主机对应的目标和安装包格式；可用 `--target` 与 `--bundles` 显式指定。构建始终向 Cargo 传入 `--locked`。
+1. 从 `develop` 创建发布准备分支，例如 `codex/prepare-0.2.1`。将「未发布」中的实际变更整理为带日期的版本条目，同步 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock`、`src-tauri/tauri.conf.json`，经 PR 合入 `develop`。
+2. 确认发布范围和验证结果，创建 `develop` → `master` 的发布 PR；完整 CI 通过后使用 **Create a merge commit** 合并。合并 PR 本身不生成安装包。
+3. 仅在明确要求发布时同步 `master`，核对版本与更新日志，在合并提交创建并推送 `v<版本>` 标签。Release 工作流检查提交已进入 `master`，再构建与发布安装包。
+4. 验证 Release 下载、首次安装、覆盖安装和应用内更新。开始下一轮开发时继续从 `develop` 创建短期分支。
+
+```sh
+git fetch github
+git switch master
+git pull --ff-only github master
+# 将版本号替换为本次已完成发布准备的版本。
+git tag -a v0.2.1 -m "Moss ProxySwitch 0.2.1"
+git push github v0.2.1
+```
+
+需要本地安装包时明确执行 `pnpm tauri:build`。默认选择当前主机对应的目标和安装包格式；可用 `--target` 与 `--bundles` 显式指定。构建始终向 Cargo 传入 `--locked`。
 
 发布脚本将安装包、更新日志、主许可证、第三方声明和许可证压缩包整理到 `artifacts/<版本>/<平台>/`，并生成校验文件。同一版本可分别保存多个平台；已有平台目录和旧格式的版本产物不会被覆盖。RPM 的连字符版本命名也会被正确收集，缺少任一指定格式时直接失败。
 

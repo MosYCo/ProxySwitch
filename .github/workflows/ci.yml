@@ -2,8 +2,10 @@ name: Checks
 
 on:
   push:
-    branches: [master, main]
+    branches: [develop, master]
   pull_request:
+    branches: [develop, master]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
   workflow_dispatch:
   workflow_call:
     outputs:
@@ -31,6 +33,9 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .node-version
+      - name: Verify release tag is on the stable branch
+        if: github.ref_type == 'tag'
+        run: node scripts/verify-release-source.mjs
       - name: Verify versions, release tag and build matrix
         id: metadata
         env:
